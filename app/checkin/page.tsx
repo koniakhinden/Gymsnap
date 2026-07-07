@@ -4,8 +4,23 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { FullWeek } from "@/lib/plan-data";
+import {
+  Button,
+  buttonClass,
+  Card,
+  Field,
+  Textarea,
+  SegmentControl,
+  Slider,
+  Skeleton,
+  SkeletonCardRow,
+} from "@/components/ui";
 
 type DayStatus = "completed" | "partial" | "skipped";
+
+const STATUS_OPTIONS = (["completed", "partial", "skipped"] as DayStatus[]).map(
+  (s) => ({ value: s, label: <span className="capitalize">{s}</span> }),
+);
 
 export default function CheckinPage() {
   const router = useRouter();
@@ -84,14 +99,23 @@ export default function CheckinPage() {
   }
 
   if (week === undefined) {
-    return <main className="p-4">Loading...</main>;
+    return (
+      <main className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-6 w-2/3" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+        <SkeletonCardRow />
+        <SkeletonCardRow />
+      </main>
+    );
   }
 
   if (!week) {
     return (
-      <main className="p-4 flex flex-col gap-3">
+      <main className="flex flex-col gap-3 p-4">
         <h1 className="text-xl font-bold">No week to check in on yet</h1>
-        <Link href="/plan" className="rounded-lg bg-gray-900 text-white py-3 text-center font-semibold">
+        <Link href="/plan" className={buttonClass({ block: true, size: "lg" })}>
           Go generate a plan
         </Link>
       </main>
@@ -99,84 +123,68 @@ export default function CheckinPage() {
   }
 
   return (
-    <main className="p-4 flex flex-col gap-4">
+    <main className="flex flex-col gap-4 p-4">
       <header>
         <h1 className="text-xl font-bold">Check in — Week {week.weekNumber}</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="mt-1 text-sm text-ink-secondary">
           Tell GymSnap how the week went so next week can adjust.
         </p>
       </header>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-3">
+        <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">
           {error}
         </div>
       )}
 
       <div className="flex flex-col gap-2">
         {week.days.map((d) => (
-          <div key={d.id} className="rounded-lg bg-white border border-gray-200 p-3">
-            <p className="text-sm font-medium mb-2">
+          <Card key={d.id} className="p-3">
+            <p className="mb-2 text-sm font-medium">
               {d.dayLabel} — {d.focus}
             </p>
-            <div className="flex gap-2">
-              {(["completed", "partial", "skipped"] as DayStatus[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatuses((prev) => ({ ...prev, [d.id]: s }))}
-                  className={`flex-1 rounded-md py-1.5 text-xs font-medium capitalize ${
-                    statuses[d.id] === s
-                      ? "bg-gray-900 text-white"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
+            <SegmentControl<DayStatus>
+              options={STATUS_OPTIONS}
+              value={statuses[d.id] ?? "completed"}
+              onChange={(s) => setStatuses((prev) => ({ ...prev, [d.id]: s }))}
+            />
+          </Card>
         ))}
       </div>
 
-      <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-gray-700">Comments</span>
-        <textarea
+      <Field label="Comments">
+        <Textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           placeholder="Anything felt off? Any wins?"
-          className="select h-20 resize-none"
+          rows={3}
         />
-      </label>
+      </Field>
 
-      <Slider label={`Overall wellbeing: ${wellbeing}/5`} value={wellbeing} onChange={setWellbeing} />
-      <Slider label={`Knees: ${knees}/5`} value={knees} onChange={setKnees} />
-      <Slider label={`Lower back: ${lowerBack}/5`} value={lowerBack} onChange={setLowerBack} />
+      <RatingSlider label={`Overall wellbeing: ${wellbeing}/5`} value={wellbeing} onChange={setWellbeing} />
+      <RatingSlider label={`Knees: ${knees}/5`} value={knees} onChange={setKnees} />
+      <RatingSlider label={`Lower back: ${lowerBack}/5`} value={lowerBack} onChange={setLowerBack} />
 
-      <button
-        type="button"
-        disabled={saving}
+      <Button
+        variant={saved ? "secondary" : "primary"}
+        size="lg"
+        block
+        loading={saving}
         onClick={handleSave}
-        className="rounded-lg bg-gray-900 text-white py-3 font-semibold disabled:opacity-40"
       >
         {saving ? "Saving..." : saved ? "Update check-in" : "Save check-in"}
-      </button>
+      </Button>
 
       {saved && (
-        <button
-          type="button"
-          disabled={generating}
-          onClick={handleGenerateNext}
-          className="rounded-lg bg-cyan-600 text-white py-3 font-semibold disabled:opacity-40"
-        >
+        <Button size="lg" block loading={generating} onClick={handleGenerateNext}>
           {generating ? "Generating..." : `Generate next week (week ${week.weekNumber + 1})`}
-        </button>
+        </Button>
       )}
     </main>
   );
 }
 
-function Slider({
+function RatingSlider({
   label,
   value,
   onChange,
@@ -186,15 +194,16 @@ function Slider({
   onChange: (v: number) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1.5 text-sm">
-      <span className="font-medium text-gray-700">{label}</span>
-      <input
-        type="range"
-        min={1}
-        max={5}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </label>
+    <Field label={label}>
+      <div className="pt-1">
+        <Slider
+          aria-label={label}
+          min={1}
+          max={5}
+          value={value}
+          onChange={onChange}
+        />
+      </div>
+    </Field>
   );
 }

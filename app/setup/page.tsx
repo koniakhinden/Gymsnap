@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Camera, X } from "lucide-react";
+import { Button } from "@/components/ui";
 
 const MAX_FILES = 10;
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
@@ -194,10 +196,10 @@ export default function SetupPage() {
   }
 
   return (
-    <main className="p-4 flex flex-col gap-4">
+    <main className="flex flex-col gap-4 p-4">
       <header>
         <h1 className="text-xl font-bold">Photograph your gym</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="mt-1 text-sm text-ink-secondary">
           Add up to 10 photos. One photo can cover several machines at once —
           wide shots of a whole corner or wall work great. GymSnap will identify
           the equipment for your weekly plan.
@@ -216,15 +218,17 @@ export default function SetupPage() {
           if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
-        className={`rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors ${
-          dragActive ? "border-cyan-500 bg-cyan-50" : "border-gray-300 bg-white"
+        className={`cursor-pointer rounded-card border-2 border-dashed p-6 text-center transition-colors ${
+          dragActive ? "border-accent-border bg-accent-fill" : "border-border-strong bg-surface"
         }`}
       >
-        <p className="text-3xl mb-2">📷</p>
-        <p className="text-sm font-medium text-gray-700">
+        <div className="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent-fill text-accent">
+          <Camera size={24} strokeWidth={1.8} />
+        </div>
+        <p className="text-sm font-medium text-ink">
           Tap to choose photos, or drag and drop
         </p>
-        <p className="text-xs text-gray-400 mt-1">JPEG, PNG, or HEIC · up to 10 MB each</p>
+        <p className="mt-1 text-xs text-ink-tertiary">JPEG, PNG, or HEIC · up to 10 MB each</p>
         <input
           ref={inputRef}
           type="file"
@@ -239,7 +243,7 @@ export default function SetupPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-3">
+        <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">
           {error}
         </div>
       )}
@@ -252,7 +256,7 @@ export default function SetupPage() {
               <img
                 src={p.previewUrl}
                 alt={`Gym photo ${i + 1}`}
-                className="h-full w-full object-cover rounded-lg"
+                className="h-full w-full rounded-lg object-cover"
               />
               <button
                 type="button"
@@ -260,28 +264,29 @@ export default function SetupPage() {
                   e.stopPropagation();
                   removePhoto(i);
                 }}
-                className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+                className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-white"
                 aria-label="Remove photo"
               >
-                ✕
+                <X size={14} strokeWidth={2.5} />
               </button>
             </div>
           ))}
         </div>
       )}
 
-      <button
-        type="button"
-        disabled={photos.length === 0 || loading}
+      <Button
+        block
+        size="lg"
+        disabled={photos.length === 0}
+        loading={loading}
         onClick={handleRecognize}
-        className="rounded-lg bg-gray-900 text-white py-3 font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {loading ? "Recognizing..." : "Recognize equipment"}
-      </button>
+      </Button>
 
       {loading && (
-        <div className="rounded-lg bg-cyan-50 border border-cyan-200 text-cyan-800 text-sm p-3 flex items-center gap-2">
-          <span className="inline-block h-4 w-4 rounded-full border-2 border-cyan-600 border-t-transparent animate-spin" />
+        <div className="flex items-center gap-2 rounded-field border border-accent-badge-border bg-accent-fill p-3 text-sm text-accent-hover">
+          <span className="inline-block h-4 w-4 rounded-full border-2 border-accent border-t-transparent [animation:spin_0.7s_linear_infinite]" />
           {PROGRESS_MESSAGES[progressIndex]}
         </div>
       )}

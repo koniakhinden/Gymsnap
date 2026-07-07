@@ -1,8 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Camera, X } from "lucide-react";
 import ImageLightbox, { exerciseImageUrl } from "@/components/ImageLightbox";
 import { compressPhoto } from "@/lib/compress-photo";
+import {
+  Button,
+  Card,
+  OptionCard,
+  Pill,
+  PillGroup,
+  SegmentControl,
+  Textarea,
+  Input,
+  Badge,
+  cn,
+} from "@/components/ui";
 
 const MAX_FILES = 10;
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
@@ -329,18 +342,18 @@ export default function QuickWorkoutPage() {
   // ---------------- RESULT VIEW ----------------
   if (workout) {
     return (
-      <main className="p-4 flex flex-col gap-4">
+      <main className="flex flex-col gap-4 p-4">
         <header>
           <h1 className="text-xl font-bold">{workout.title}</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="mt-1 text-sm text-ink-secondary">
             {workout.focus} · ~{workout.totalMin} min
           </p>
         </header>
 
         {workout.cautions.length > 0 && (
-          <div className="rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm p-3">
-            <p className="font-semibold mb-1">Before you start</p>
-            <ul className="list-disc pl-4 space-y-1">
+          <div className="rounded-field border border-warning/25 bg-warning-bg p-3 text-sm text-warning-ink">
+            <p className="mb-1 font-semibold">Before you start</p>
+            <ul className="list-disc space-y-1 pl-4">
               {workout.cautions.map((c, i) => (
                 <li key={i}>{c}</li>
               ))}
@@ -358,7 +371,7 @@ export default function QuickWorkoutPage() {
             const images = block.exercise?.images ?? [];
             const open = expanded[i] ?? null;
             return (
-              <div key={i} className="rounded-xl bg-white border border-gray-200 p-4">
+              <Card key={i} className="p-4">
                 <div className="flex gap-3">
                   {images.length > 0 && (
                     <button
@@ -370,40 +383,41 @@ export default function QuickWorkoutPage() {
                       <img
                         src={exerciseImageUrl(images[0])}
                         alt={name}
-                        className="h-16 w-16 object-cover rounded-md border border-gray-200"
+                        className="h-16 w-16 rounded-md border border-border object-cover"
                       />
                     </button>
                   )}
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-sm">
+                      <p className="text-sm font-semibold">
                         {i + 1}. {name}
                       </p>
-                      <span className="shrink-0 text-xs rounded-full bg-gray-100 text-gray-600 px-2 py-0.5">
-                        {blockBadge(block)}
+                      <span className="shrink-0">
+                        <Badge tone="neutral">{blockBadge(block)}</Badge>
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600 mt-0.5">
+                    <p className="mt-0.5 text-sm text-ink-secondary">
                       {block.sets} sets × {block.reps} · rest {block.restSec}s
                     </p>
                     {block.whyIncluded && (
-                      <p className="text-xs text-gray-400 mt-1">{block.whyIncluded}</p>
+                      <p className="mt-1 text-xs text-ink-tertiary">{block.whyIncluded}</p>
                     )}
                   </div>
                 </div>
 
-                <div className="flex gap-2 mt-3">
+                <div className="mt-3 flex gap-2">
                   {block.easierOption && (
                     <button
                       type="button"
                       onClick={() =>
                         setExpanded((p) => ({ ...p, [i]: open === "easier" ? null : "easier" }))
                       }
-                      className={`flex-1 rounded-lg border py-1.5 text-xs font-medium ${
+                      className={cn(
+                        "flex-1 rounded-btn border py-1.5 text-xs font-medium transition-colors",
                         open === "easier"
-                          ? "border-cyan-300 bg-cyan-50 text-cyan-700"
-                          : "border-gray-300 text-gray-600"
-                      }`}
+                          ? "border-accent-border bg-accent-fill text-accent-hover"
+                          : "border-border-strong text-ink-secondary hover:border-ink-disabled",
+                      )}
                     >
                       Easier
                     </button>
@@ -414,22 +428,23 @@ export default function QuickWorkoutPage() {
                       onClick={() =>
                         setExpanded((p) => ({ ...p, [i]: open === "harder" ? null : "harder" }))
                       }
-                      className={`flex-1 rounded-lg border py-1.5 text-xs font-medium ${
+                      className={cn(
+                        "flex-1 rounded-btn border py-1.5 text-xs font-medium transition-colors",
                         open === "harder"
-                          ? "border-cyan-300 bg-cyan-50 text-cyan-700"
-                          : "border-gray-300 text-gray-600"
-                      }`}
+                          ? "border-accent-border bg-accent-fill text-accent-hover"
+                          : "border-border-strong text-ink-secondary hover:border-ink-disabled",
+                      )}
                     >
                       Harder
                     </button>
                   )}
                 </div>
                 {open && (
-                  <p className="text-xs text-gray-600 mt-2 bg-gray-50 rounded-lg p-2">
+                  <p className="mt-2 rounded-lg bg-bg p-2 text-xs text-ink-secondary">
                     {open === "easier" ? block.easierOption : block.harderOption}
                   </p>
                 )}
-              </div>
+              </Card>
             );
           })}
         </section>
@@ -438,13 +453,9 @@ export default function QuickWorkoutPage() {
           <SegmentCard title="Cooldown" segments={workout.cooldown} />
         )}
 
-        <button
-          type="button"
-          onClick={resetForNew}
-          className="rounded-lg bg-gray-900 text-white py-3 font-semibold"
-        >
+        <Button block size="lg" onClick={resetForNew}>
           New quick workout
-        </button>
+        </Button>
 
         {lightbox && (
           <ImageLightbox
@@ -459,57 +470,59 @@ export default function QuickWorkoutPage() {
 
   // ---------------- SETUP VIEW ----------------
   return (
-    <main className="p-4 flex flex-col gap-5">
+    <main className="flex flex-col gap-5 p-4">
       <header>
         <h1 className="text-xl font-bold">Train now</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="mt-1 text-sm text-ink-secondary">
           Get one session for right now, built from whatever you have on hand.
         </p>
       </header>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-3">
+        <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">
           {error}
         </div>
       )}
 
       {/* STEP 1 — equipment */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-sm">1 · What do you have?</h2>
+        <h2 className="text-sm font-semibold">1 · What do you have?</h2>
 
-        <ModeOption
-          active={mode === "saved"}
+        <OptionCard
+          selected={mode === "saved"}
           disabled={hasSavedGym === false}
-          onClick={() => setMode("saved")}
+          onSelect={() => setMode("saved")}
           title="Use my saved gym"
-          subtitle={
+          desc={
             hasSavedGym === false
               ? "No saved gym yet — set one up first"
               : `${savedCount} item${savedCount === 1 ? "" : "s"} on file`
           }
         />
-        <ModeOption
-          active={mode === "photo"}
-          onClick={() => setMode("photo")}
+        <OptionCard
+          selected={mode === "photo"}
+          onSelect={() => setMode("photo")}
           title="Photo of what I have"
-          subtitle="Snap a band, a couple of dumbbells, a pull-up bar…"
+          desc="Snap a band, a couple of dumbbells, a pull-up bar…"
         />
-        <ModeOption
-          active={mode === "none"}
-          onClick={() => setMode("none")}
+        <OptionCard
+          selected={mode === "none"}
+          onSelect={() => setMode("none")}
           title="No equipment"
-          subtitle="Bodyweight only"
+          desc="Bodyweight only"
         />
 
         {mode === "photo" && (
-          <div className="rounded-xl border border-gray-200 bg-white p-3 flex flex-col gap-3">
+          <Card className="flex flex-col gap-3 p-3">
             <div
               onClick={() => inputRef.current?.click()}
-              className="rounded-lg border-2 border-dashed border-gray-300 p-4 text-center cursor-pointer"
+              className="cursor-pointer rounded-field border-2 border-dashed border-border-strong p-4 text-center transition-colors hover:border-accent-border"
             >
-              <p className="text-2xl mb-1">📷</p>
-              <p className="text-sm font-medium text-gray-700">Tap to add 1–10 photos</p>
-              <p className="text-xs text-gray-400 mt-0.5">JPEG, PNG, or HEIC</p>
+              <div className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent-fill text-accent">
+                <Camera size={20} strokeWidth={1.8} />
+              </div>
+              <p className="text-sm font-medium text-ink">Tap to add 1–10 photos</p>
+              <p className="mt-0.5 text-xs text-ink-tertiary">JPEG, PNG, or HEIC</p>
               <input
                 ref={inputRef}
                 type="file"
@@ -531,15 +544,15 @@ export default function QuickWorkoutPage() {
                     <img
                       src={p.previewUrl}
                       alt={`Photo ${i + 1}`}
-                      className="h-full w-full object-cover rounded-lg"
+                      className="h-full w-full rounded-lg object-cover"
                     />
                     <button
                       type="button"
                       onClick={() => removePhoto(i)}
-                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-white"
                       aria-label="Remove photo"
                     >
-                      ✕
+                      <X size={12} strokeWidth={2.5} />
                     </button>
                   </div>
                 ))}
@@ -547,23 +560,18 @@ export default function QuickWorkoutPage() {
             )}
 
             {photos.length > 0 && (
-              <button
-                type="button"
-                disabled={recognizing}
-                onClick={handleRecognize}
-                className="rounded-lg bg-gray-900 text-white py-2 text-sm font-semibold disabled:opacity-40"
-              >
+              <Button block loading={recognizing} onClick={handleRecognize}>
                 {recognizing
                   ? "Looking…"
                   : recognized
-                  ? "Re-scan photos"
-                  : "Scan photos"}
-              </button>
+                    ? "Re-scan photos"
+                    : "Scan photos"}
+              </Button>
             )}
 
             {recognized && (
               <div className="flex flex-col gap-2">
-                <p className="text-xs font-medium text-gray-500">
+                <p className="text-xs font-medium text-ink-secondary">
                   {recognized.length > 0
                     ? "Found — tweak if needed:"
                     : "Nothing recognized. Add items, or continue for a bodyweight session."}
@@ -572,22 +580,22 @@ export default function QuickWorkoutPage() {
                   {recognized.map((item, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-700 text-xs px-2.5 py-1"
+                      className="inline-flex items-center gap-1 rounded-pill bg-surface-sunken px-2.5 py-1 text-xs text-ink-secondary"
                     >
                       {item.name}
                       <button
                         type="button"
                         onClick={() => removeRecognized(i)}
-                        className="text-gray-400"
+                        className="text-ink-tertiary hover:text-ink"
                         aria-label={`Remove ${item.name}`}
                       >
-                        ✕
+                        <X size={12} strokeWidth={2.5} />
                       </button>
                     </span>
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <input
+                  <Input
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     onKeyDown={(e) => {
@@ -597,133 +605,105 @@ export default function QuickWorkoutPage() {
                       }
                     }}
                     placeholder="Add item"
-                    className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                    className="flex-1 !py-2"
                   />
-                  <button
-                    type="button"
-                    onClick={addRecognizedItem}
-                    className="rounded-md border border-gray-300 px-3 text-sm"
-                  >
+                  <Button variant="secondary" onClick={addRecognizedItem}>
                     Add
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
-          </div>
+          </Card>
         )}
       </section>
 
       {/* STEP 2 — focus */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-sm">2 · What do you want to train?</h2>
-        <div className="flex flex-wrap gap-2">
-          {FOCUS_CHIPS.map((chip) => {
-            const on = selectedChips.includes(chip);
-            return (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => toggleChip(chip)}
-                className={`rounded-full px-3 py-1.5 text-sm border ${
-                  on
-                    ? "border-cyan-500 bg-cyan-50 text-cyan-700 font-medium"
-                    : "border-gray-300 text-gray-600"
-                }`}
-              >
-                {chip}
-              </button>
-            );
-          })}
-        </div>
-        <textarea
+        <h2 className="text-sm font-semibold">2 · What do you want to train?</h2>
+        <PillGroup>
+          {FOCUS_CHIPS.map((chip) => (
+            <Pill
+              key={chip}
+              selected={selectedChips.includes(chip)}
+              onClick={() => toggleChip(chip)}
+            >
+              {chip}
+            </Pill>
+          ))}
+        </PillGroup>
+        <Textarea
           value={focusText}
           onChange={(e) => setFocusText(e.target.value)}
           placeholder="…or describe it (e.g. “ankle after a sprain”, “stiff neck from sitting”, “legs but easy on the knees”)"
           rows={2}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
         />
       </section>
 
       {/* STEP 3 — time */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-sm">3 · How much time?</h2>
-        <div className="grid grid-cols-4 gap-2">
-          {TIME_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setTimeMin(opt.value)}
-              className={`rounded-lg py-2.5 text-sm font-medium border ${
-                timeMin === opt.value
-                  ? "border-cyan-500 bg-cyan-50 text-cyan-700"
-                  : "border-gray-300 text-gray-600"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        <h2 className="text-sm font-semibold">3 · How much time?</h2>
+        <SegmentControl
+          options={TIME_OPTIONS.map((opt) => ({
+            value: String(opt.value),
+            label: opt.label,
+          }))}
+          value={String(timeMin)}
+          onChange={(v) => setTimeMin(Number(v) as 10 | 20 | 30 | 45)}
+        />
       </section>
 
-      <button
-        type="button"
-        disabled={buildDisabled}
-        onClick={handleBuild}
-        className="rounded-lg bg-gray-900 text-white py-3 font-semibold disabled:opacity-40"
-      >
+      <Button block size="lg" disabled={buildDisabled} loading={building} onClick={handleBuild}>
         {building ? "Building…" : "Build my workout"}
-      </button>
+      </Button>
 
       {mode === "photo" && recognized === null && (
-        <p className="text-xs text-gray-400 -mt-2">
+        <p className="-mt-2 text-xs text-ink-tertiary">
           Scan your photos first, or switch to another option.
         </p>
       )}
 
       {building && (
-        <div className="rounded-lg bg-cyan-50 border border-cyan-200 text-cyan-800 text-sm p-3 flex items-center gap-2">
-          <span className="inline-block h-4 w-4 rounded-full border-2 border-cyan-600 border-t-transparent animate-spin" />
+        <div className="flex items-center gap-2 rounded-field border border-accent-badge-border bg-accent-fill p-3 text-sm text-accent-hover">
+          <span className="inline-block h-4 w-4 rounded-full border-2 border-accent border-t-transparent [animation:spin_0.7s_linear_infinite]" />
           {BUILD_MESSAGES[buildIndex]}
         </div>
       )}
 
       {history.length > 0 && (
-        <section className="flex flex-col gap-2 mt-2">
-          <h2 className="font-semibold text-sm">Recent</h2>
+        <section className="mt-2 flex flex-col gap-2">
+          <h2 className="text-sm font-semibold">Recent</h2>
           <ul className="flex flex-col gap-2">
             {history.map((item) => (
-              <li
-                key={item.id}
-                className="rounded-xl border border-gray-200 bg-white p-3 flex items-center justify-between gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{item.title}</p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {item.timeMin} min ·{" "}
-                    {item.equipmentMode === "none"
-                      ? "bodyweight"
-                      : item.equipmentMode === "saved"
-                      ? "saved gym"
-                      : "photo"}
-                    {item.focusChips.length > 0 ? ` · ${item.focusChips.join(", ")}` : ""}
-                  </p>
-                </div>
-                <div className="shrink-0 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openHistory(item)}
-                    className="rounded-lg bg-gray-900 text-white px-3 py-1.5 text-xs font-medium"
-                  >
-                    Open
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => repeat(item)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium"
-                  >
-                    Repeat
-                  </button>
-                </div>
+              <li key={item.id}>
+                <Card className="flex items-center justify-between gap-3 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{item.title}</p>
+                    <p className="truncate text-xs text-ink-tertiary">
+                      {item.timeMin} min ·{" "}
+                      {item.equipmentMode === "none"
+                        ? "bodyweight"
+                        : item.equipmentMode === "saved"
+                          ? "saved gym"
+                          : "photo"}
+                      {item.focusChips.length > 0 ? ` · ${item.focusChips.join(", ")}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      onClick={() => openHistory(item)}
+                      className="!px-3 !py-1.5 !text-xs"
+                    >
+                      Open
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => repeat(item)}
+                      className="!px-3 !py-1.5 !text-xs"
+                    >
+                      Repeat
+                    </Button>
+                  </div>
+                </Card>
               </li>
             ))}
           </ul>
@@ -733,55 +713,21 @@ export default function QuickWorkoutPage() {
   );
 }
 
-function ModeOption({
-  active,
-  disabled,
-  onClick,
-  title,
-  subtitle,
-}: {
-  active: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`text-left rounded-xl border p-3 flex items-center gap-3 disabled:opacity-50 ${
-        active ? "border-cyan-500 bg-cyan-50" : "border-gray-200 bg-white"
-      }`}
-    >
-      <span
-        className={`h-4 w-4 rounded-full border-2 shrink-0 ${
-          active ? "border-cyan-500 bg-cyan-500" : "border-gray-300"
-        }`}
-      />
-      <span className="flex flex-col">
-        <span className="text-sm font-medium">{title}</span>
-        <span className="text-xs text-gray-500">{subtitle}</span>
-      </span>
-    </button>
-  );
-}
-
 function SegmentCard({ title, segments }: { title: string; segments: Segment[] }) {
   return (
-    <section className="rounded-xl bg-white border border-gray-200 p-4">
-      <h2 className="font-semibold text-sm mb-2">{title}</h2>
+    <Card className="p-4">
+      <h2 className="mb-2 text-sm font-semibold">{title}</h2>
       <ul className="flex flex-col gap-2">
         {segments.map((s, i) => (
           <li key={i} className="text-sm">
             <p className="font-medium">
-              {s.name} <span className="text-gray-400 font-normal">· {s.durationOrReps}</span>
+              {s.name}{" "}
+              <span className="font-normal text-ink-tertiary">· {s.durationOrReps}</span>
             </p>
-            <p className="text-xs text-gray-500">{s.howTo}</p>
+            <p className="text-xs text-ink-secondary">{s.howTo}</p>
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }

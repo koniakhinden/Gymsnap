@@ -3,6 +3,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Plus, Trash2 } from "lucide-react";
+import {
+  Button,
+  buttonClass,
+  Card,
+  Input,
+  Select,
+  Skeleton,
+  SkeletonCardRow,
+} from "@/components/ui";
 
 type EquipmentCategory = "cardio" | "strength_machine" | "free_weights" | "accessories";
 type Confidence = "high" | "medium" | "low";
@@ -120,17 +130,27 @@ export default function ConfirmEquipmentPage() {
   }
 
   if (items === null) {
-    return <main className="p-4">Loading...</main>;
+    return (
+      <main className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-6 w-1/2" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+        <SkeletonCardRow />
+        <SkeletonCardRow />
+        <SkeletonCardRow />
+      </main>
+    );
   }
 
   if (items.length === 0) {
     return (
-      <main className="p-4 flex flex-col gap-3">
+      <main className="flex flex-col gap-3 p-4">
         <h1 className="text-xl font-bold">Nothing to confirm yet</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-ink-secondary">
           Go back to Setup and recognize your gym equipment first.
         </p>
-        <Link href="/setup" className="rounded-lg bg-gray-900 text-white py-3 text-center font-semibold">
+        <Link href="/setup" className={buttonClass({ block: true, size: "lg" })}>
           Go to Setup
         </Link>
       </main>
@@ -138,87 +158,83 @@ export default function ConfirmEquipmentPage() {
   }
 
   return (
-    <main className="p-4 flex flex-col gap-4">
+    <main className="flex flex-col gap-4 p-4">
       <header>
         <h1 className="text-xl font-bold">Confirm your equipment</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="mt-1 text-sm text-ink-secondary">
           Edit, remove, or add items so the list matches your gym exactly.
         </p>
       </header>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-3">
+        <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">
           {error}
         </div>
       )}
 
       <div className="flex flex-col gap-3">
         {items.map((item, i) => (
-          <div
+          <Card
             key={i}
-            className={`rounded-xl border p-3 flex flex-col gap-2 ${
-              item.confidence === "low"
-                ? "border-yellow-300 bg-yellow-50"
-                : "border-gray-200 bg-white"
+            className={`flex flex-col gap-2 p-3 ${
+              item.confidence === "low" ? "border-warning/40 bg-warning-bg" : ""
             }`}
           >
             {item.confidence === "low" && (
-              <p className="text-xs font-semibold text-yellow-700">Please verify</p>
+              <p className="text-xs font-semibold text-warning-ink">Please verify</p>
             )}
-            <input
+            <Input
               value={item.name}
               onChange={(e) => updateItem(i, { name: e.target.value })}
               placeholder="Equipment name"
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm font-medium"
+              className="!py-2 font-medium"
             />
             <div className="flex gap-2">
-              <select
+              <Select
                 value={item.category}
                 onChange={(e) =>
                   updateItem(i, { category: e.target.value as EquipmentCategory })
                 }
-                className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                className="!py-2"
               >
                 {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
                 ))}
-              </select>
-              <button
-                type="button"
+              </Select>
+              <Button
+                variant="secondary"
                 onClick={() => removeItem(i)}
-                className="rounded-md border border-gray-300 px-3 text-sm text-red-600"
+                aria-label="Delete"
+                className="!px-3 !py-2 !text-sm !text-error hover:!border-error/40"
               >
+                <Trash2 size={16} strokeWidth={2} />
                 Delete
-              </button>
+              </Button>
             </div>
-            <input
+            <Input
               value={item.details}
               onChange={(e) => updateItem(i, { details: e.target.value })}
               placeholder="Details (e.g. weight range)"
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-600"
+              className="!py-2 !text-ink-secondary"
             />
-          </div>
+          </Card>
         ))}
       </div>
 
       <button
         type="button"
         onClick={addManualItem}
-        className="rounded-lg border border-dashed border-gray-400 py-2.5 text-sm font-medium text-gray-600"
+        className="flex items-center justify-center gap-1.5 rounded-btn border border-dashed border-border-strong py-2.5 text-sm font-medium text-ink-secondary transition-colors hover:border-ink-disabled hover:bg-surface"
       >
-        + Add equipment manually
+        <Plus size={16} strokeWidth={2} />
+        Add equipment manually
       </button>
 
-      <button
-        type="button"
-        disabled={saving}
-        onClick={handleSave}
-        className="rounded-lg bg-gray-900 text-white py-3 font-semibold disabled:opacity-40"
-      >
+      <Button block size="lg" loading={saving} onClick={handleSave}>
         {saving ? "Saving..." : "Save gym setup"}
-      </button>
+      </Button>
     </main>
   );
 }

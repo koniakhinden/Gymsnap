@@ -35,6 +35,17 @@ const variants: Record<Variant, string> = {
     "disabled:bg-transparent disabled:text-ink-disabled",
 };
 
+/** Shared button recipe — use on a Link/anchor that should look like a button. */
+export function buttonClass(opts?: {
+  variant?: Variant;
+  size?: Size;
+  block?: boolean;
+  className?: string;
+}): string {
+  const { variant = "primary", size = "md", block, className } = opts ?? {};
+  return cn(base, sizes[size], variants[variant], block && "w-full", className);
+}
+
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;

@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Printer, Trash2 } from "lucide-react";
 import ImageLightbox, { exerciseImageUrl } from "@/components/ImageLightbox";
 import type { FullWeek } from "@/lib/plan-data";
+import { Button, Card, Badge, Skeleton } from "@/components/ui";
 
 const PROGRESS_MESSAGES = [
   "Reviewing your profile and equipment...",
@@ -110,73 +112,87 @@ export default function PlanPage() {
   }
 
   if (loadingWeek) {
-    return <main className="p-4">Loading...</main>;
+    return (
+      <main className="flex flex-col gap-4 p-4">
+        <Skeleton className="h-6 w-1/3" />
+        <Skeleton className="h-12 w-full rounded-btn" />
+        <Card className="flex flex-col gap-3 p-4">
+          <Skeleton className="h-5 w-1/2" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
+        </Card>
+      </main>
+    );
   }
 
   const nextWeekLabel = week ? `Generate week ${week.weekNumber + 1}` : "Generate week 1";
 
   return (
-    <main className="p-4 flex flex-col gap-4">
+    <main className="flex flex-col gap-4 p-4">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{week ? `Week ${week.weekNumber}` : "Your plan"}</h1>
         {week && (
           <div className="no-print flex items-center gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => window.print()}
-              className="text-sm font-medium text-cyan-700 border border-cyan-200 rounded-md px-3 py-1.5"
+              className="!px-3 !py-1.5 !text-sm"
             >
+              <Printer size={16} strokeWidth={2} />
               Print / Save as PDF
-            </button>
-            <button
-              type="button"
-              disabled={deleting}
+            </Button>
+            <Button
+              variant="secondary"
+              loading={deleting}
               onClick={handleDeleteWeek}
-              className="text-sm font-medium text-red-600 border border-red-200 rounded-md px-3 py-1.5 disabled:opacity-40"
+              className="!px-3 !py-1.5 !text-sm !text-error hover:!border-error/40"
             >
+              {!deleting && <Trash2 size={16} strokeWidth={2} />}
               {deleting ? "Deleting..." : "Delete"}
-            </button>
+            </Button>
           </div>
         )}
       </header>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-3">
+        <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">
           {error}
         </div>
       )}
       {warning && (
-        <div className="rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm p-3">
+        <div className="rounded-field border border-warning/25 bg-warning-bg p-3 text-sm text-warning-ink">
           {warning}
         </div>
       )}
 
       {!week && (
-        <div className="rounded-lg bg-white border border-gray-200 p-4 text-sm text-gray-600">
+        <Card className="p-4 text-sm text-ink-secondary">
           No plan yet. Make sure your{" "}
-          <Link href="/setup" className="underline">
+          <Link href="/setup" className="text-accent underline hover:text-accent-hover">
             gym setup
           </Link>{" "}
           and{" "}
-          <Link href="/profile" className="underline">
+          <Link href="/profile" className="text-accent underline hover:text-accent-hover">
             profile
           </Link>{" "}
           are complete, then generate your first week.
-        </div>
+        </Card>
       )}
 
-      <button
-        type="button"
-        disabled={generating}
+      <Button
+        block
+        size="lg"
+        className="no-print"
+        loading={generating}
         onClick={handleGenerate}
-        className="no-print rounded-lg bg-gray-900 text-white py-3 font-semibold disabled:opacity-40"
       >
         {generating ? "Generating..." : nextWeekLabel}
-      </button>
+      </Button>
 
       {generating && (
-        <div className="no-print rounded-lg bg-cyan-50 border border-cyan-200 text-cyan-800 text-sm p-3 flex items-center gap-2">
-          <span className="inline-block h-4 w-4 rounded-full border-2 border-cyan-600 border-t-transparent animate-spin" />
+        <div className="no-print flex items-center gap-2 rounded-field border border-accent-badge-border bg-accent-fill p-3 text-sm text-accent-hover">
+          <span className="inline-block h-4 w-4 rounded-full border-2 border-accent border-t-transparent [animation:spin_0.7s_linear_infinite]" />
           {PROGRESS_MESSAGES[progressIndex]}
         </div>
       )}
@@ -184,25 +200,25 @@ export default function PlanPage() {
       {week && (
         <div className="flex flex-col gap-4">
           {week.days.map((day) => (
-            <section key={day.id} className="rounded-xl bg-white border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="font-semibold">{day.dayLabel}</h2>
+            <Card key={day.id} className="p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <h2 className="text-[17px] font-semibold">{day.dayLabel}</h2>
                 {day.checkinStatus && (
-                  <span
-                    className={`text-xs rounded-full px-2 py-0.5 font-medium ${
+                  <Badge
+                    tone={
                       day.checkinStatus === "completed"
-                        ? "bg-green-100 text-green-700"
+                        ? "success"
                         : day.checkinStatus === "partial"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
+                          ? "warning"
+                          : "neutral"
+                    }
                   >
                     {day.checkinStatus}
-                  </span>
+                  </Badge>
                 )}
               </div>
-              <p className="text-sm text-gray-500 mb-2">{day.focus}</p>
-              <p className="text-xs text-gray-500 mb-3">
+              <p className="mb-2 text-sm text-ink-secondary">{day.focus}</p>
+              <p className="mb-3 text-xs text-ink-tertiary">
                 <span className="font-medium">Warmup:</span> {day.warmup}
               </p>
 
@@ -214,7 +230,7 @@ export default function PlanPage() {
                   return (
                     <div
                       key={ex.id}
-                      className="flex gap-3 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0"
+                      className="flex gap-3 border-t border-divider pt-2 first:border-t-0 first:pt-0"
                     >
                       {images.length > 0 && (
                         <button
@@ -226,29 +242,23 @@ export default function PlanPage() {
                           <img
                             src={exerciseImageUrl(images[0])}
                             alt={name}
-                            className="h-14 w-14 object-cover rounded-md border border-gray-200"
+                            className="h-14 w-14 rounded-md border border-border object-cover"
                           />
                         </button>
                       )}
                       <div className="flex-1 text-sm">
-                        <p className="font-medium flex items-center gap-1.5 flex-wrap">
+                        <p className="flex flex-wrap items-center gap-1.5 font-medium">
                           {name}
-                          {equipmentLabel && (
-                            <span className="text-xs rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 px-1.5 py-0.5">
-                              {equipmentLabel}
-                            </span>
-                          )}
-                          {ex.unverified && (
-                            <span className="text-xs rounded-full bg-yellow-100 text-yellow-700 px-1.5 py-0.5">
-                              Unverified
-                            </span>
-                          )}
+                          {equipmentLabel && <Badge tone="beta">{equipmentLabel}</Badge>}
+                          {ex.unverified && <Badge tone="warning">Unverified</Badge>}
                         </p>
-                        <p className="text-gray-500">
+                        <p className="text-ink-secondary">
                           {ex.sets} sets x {ex.reps} · {ex.weight || "bodyweight"} · rest{" "}
                           {ex.restSec}s
                         </p>
-                        {ex.notes && <p className="text-gray-400 text-xs mt-0.5">{ex.notes}</p>}
+                        {ex.notes && (
+                          <p className="mt-0.5 text-xs text-ink-tertiary">{ex.notes}</p>
+                        )}
                       </div>
                     </div>
                   );
@@ -256,7 +266,7 @@ export default function PlanPage() {
               </div>
 
               {day.cardio && (
-                <p className="text-xs text-gray-500 mt-3">
+                <p className="mt-3 text-xs text-ink-tertiary">
                   <span className="font-medium">Cardio:</span> {day.cardio.type} for{" "}
                   {day.cardio.durationMin} min
                   {day.cardio.incline ? `, incline ${day.cardio.incline}` : ""}
@@ -264,10 +274,10 @@ export default function PlanPage() {
                 </p>
               )}
 
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="mt-2 text-xs text-ink-tertiary">
                 <span className="font-medium">Cooldown:</span> {day.cooldown}
               </p>
-            </section>
+            </Card>
           ))}
         </div>
       )}

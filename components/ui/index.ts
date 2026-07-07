@@ -1,5 +1,5 @@
 export { cn } from "./cn";
-export { Button } from "./Button";
+export { Button, buttonClass } from "./Button";
 export type { ButtonProps } from "./Button";
 export { Badge } from "./Badge";
 export { Card } from "./Card";

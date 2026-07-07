@@ -3,6 +3,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import SyncDevices from "@/components/SyncDevices";
+import {
+  Button,
+  Field,
+  Input,
+  Select,
+  Textarea,
+  Slider,
+  SegmentControl,
+  Skeleton,
+} from "@/components/ui";
 
 type FormState = {
   ageGroup: "25-34" | "35-44" | "45-54" | "55+";
@@ -109,137 +119,141 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return <main className="p-4">Loading...</main>;
+    return (
+      <main className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-6 w-1/2" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-2">
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-11 w-full rounded-field" />
+          </div>
+        ))}
+      </main>
+    );
   }
 
   return (
-    <main className="p-4 flex flex-col gap-4">
+    <main className="flex flex-col gap-4 p-4">
       <header>
         <h1 className="text-xl font-bold">Your profile</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="mt-1 text-sm text-ink-secondary">
           Used to tailor your weekly plan — nothing here is shared or stored remotely.
         </p>
       </header>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-3">
+        <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <Field label="Age group">
-          <select
+          <Select
             value={form.ageGroup}
             onChange={(e) => patch("ageGroup", e.target.value as FormState["ageGroup"])}
-            className="select"
           >
             <option value="25-34">25-34</option>
             <option value="35-44">35-44</option>
             <option value="45-54">45-54</option>
             <option value="55+">55+</option>
-          </select>
+          </Select>
         </Field>
 
         <Field label="Body weight">
           <div className="flex gap-2">
-            <input
+            <Input
               type="number"
               step="0.1"
               min="0"
               value={form.bodyWeight}
               onChange={(e) => patch("bodyWeight", e.target.value)}
               placeholder="e.g. 165"
-              className="select flex-1"
+              className="flex-1"
             />
-            <div className="flex rounded-md border border-gray-300 overflow-hidden text-sm">
-              {(["lbs", "kg"] as const).map((unit) => (
-                <button
-                  type="button"
-                  key={unit}
-                  onClick={() => patch("weightUnit", unit)}
-                  className={`px-3 ${
-                    form.weightUnit === unit ? "bg-gray-900 text-white" : "bg-white text-gray-600"
-                  }`}
-                >
-                  {unit}
-                </button>
-              ))}
-            </div>
+            <SegmentControl<"lbs" | "kg">
+              className="w-[132px] flex-shrink-0"
+              options={[
+                { value: "lbs", label: "lbs" },
+                { value: "kg", label: "kg" },
+              ]}
+              value={form.weightUnit}
+              onChange={(v) => patch("weightUnit", v)}
+            />
           </div>
         </Field>
 
         <Field label="Sex">
-          <select
+          <Select
             value={form.sex}
             onChange={(e) => patch("sex", e.target.value as FormState["sex"])}
-            className="select"
           >
             <option value="male">Male</option>
             <option value="female">Female</option>
             <option value="other">Other</option>
-          </select>
+          </Select>
         </Field>
 
         <Field label="Experience">
-          <select
+          <Select
             value={form.experience}
             onChange={(e) => patch("experience", e.target.value as FormState["experience"])}
-            className="select"
           >
             <option value="beginner">Beginner</option>
             <option value="intermediate">Intermediate</option>
             <option value="advanced">Advanced</option>
             <option value="returning">Returning after a break</option>
-          </select>
+          </Select>
         </Field>
 
         <Field label="Goal">
-          <select
+          <Select
             value={form.goal}
             onChange={(e) => patch("goal", e.target.value as FormState["goal"])}
-            className="select"
           >
             <option value="weight_loss">Weight loss</option>
             <option value="muscle_gain">Muscle gain</option>
             <option value="strength">Strength</option>
             <option value="general_fitness">General fitness</option>
-          </select>
+          </Select>
         </Field>
 
         <Field label={`Days per week: ${form.daysPerWeek}`}>
-          <input
-            type="range"
-            min={2}
-            max={6}
-            value={form.daysPerWeek}
-            onChange={(e) => patch("daysPerWeek", Number(e.target.value))}
-            className="w-full"
-          />
+          <div className="pt-1">
+            <Slider
+              aria-label="Days per week"
+              min={2}
+              max={6}
+              value={form.daysPerWeek}
+              onChange={(v) => patch("daysPerWeek", v)}
+            />
+          </div>
         </Field>
 
         <Field label="Session length">
-          <select
+          <Select
             value={form.sessionLength}
             onChange={(e) =>
               patch("sessionLength", e.target.value as FormState["sessionLength"])
             }
-            className="select"
           >
             <option value="30-40">30-40 min</option>
             <option value="45-60">45-60 min</option>
             <option value="60-90">60-90 min</option>
-          </select>
+          </Select>
         </Field>
 
         <Field label="Injuries & limitations">
-          <textarea
+          <Textarea
             value={form.injuriesText}
             onChange={(e) => patch("injuriesText", e.target.value)}
             placeholder="Anything we should know? e.g. 'sore right shoulder from an old injury'"
-            className="select h-20 resize-none"
+            rows={3}
           />
-          <div className="flex flex-col gap-2 mt-2">
+          <div className="mt-2 flex flex-col gap-2">
             <Checkbox
               label="Sensitive knees"
               checked={form.injuryKnees}
@@ -288,26 +302,13 @@ export default function ProfilePage() {
           </div>
         </Field>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-gray-900 text-white py-3 font-semibold disabled:opacity-40"
-        >
+        <Button type="submit" size="lg" block loading={saving}>
           {saving ? "Saving..." : "Save profile"}
-        </button>
+        </Button>
       </form>
 
       <SyncDevices />
     </main>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5 text-sm">
-      <span className="font-medium text-gray-700">{label}</span>
-      {children}
-    </label>
   );
 }
 
@@ -321,8 +322,13 @@ function Checkbox({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm text-gray-700">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    <label className="flex items-center gap-2 text-sm text-ink-secondary">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 accent-accent"
+      />
       {label}
     </label>
   );

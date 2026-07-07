@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button, Card, Input } from "@/components/ui";
 
 export default function SyncDevices() {
   const router = useRouter();
@@ -60,44 +61,39 @@ export default function SyncDevices() {
   }
 
   return (
-    <section className="rounded-xl bg-white border border-gray-200 p-4 flex flex-col gap-4">
+    <Card className="flex flex-col gap-4 p-4">
       <div>
-        <h2 className="font-semibold">Sync devices</h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <h2 className="text-[17px] font-semibold">Sync devices</h2>
+        <p className="mt-1 text-sm text-ink-secondary">
           Use the same profile on another phone or computer — no account needed.
         </p>
       </div>
 
       {/* Generate a code for another device to enter */}
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={getCode}
-          disabled={generating}
-          className="rounded-lg border border-gray-300 py-2.5 text-sm font-semibold disabled:opacity-40"
-        >
+        <Button variant="secondary" block loading={generating} onClick={getCode}>
           {generating ? "Generating…" : "Get sync code"}
-        </button>
-        {genError && <p className="text-sm text-red-600">{genError}</p>}
+        </Button>
+        {genError && <p className="text-sm text-error">{genError}</p>}
         {code && (
-          <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 text-center">
-            <p className="text-3xl font-bold tracking-[0.3em] font-mono">{code}</p>
-            <p className="text-xs text-gray-500 mt-1">
+          <div className="rounded-field border border-border bg-bg p-3 text-center">
+            <p className="font-mono text-3xl font-bold tracking-[0.3em]">{code}</p>
+            <p className="mt-1 text-xs text-ink-tertiary">
               Enter this on your other device within 10 minutes.
             </p>
           </div>
         )}
       </div>
 
-      <div className="border-t border-gray-100" />
+      <div className="border-t border-divider" />
 
       {/* Enter a code from another device */}
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-gray-700">
+        <label className="text-sm font-medium text-ink">
           Enter code from another device
         </label>
         <div className="flex gap-2">
-          <input
+          <Input
             value={entered}
             onChange={(e) => setEntered(e.target.value.toUpperCase())}
             placeholder="ABC123"
@@ -105,24 +101,19 @@ export default function SyncDevices() {
             autoCapitalize="characters"
             autoCorrect="off"
             spellCheck={false}
-            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono tracking-[0.2em] uppercase"
+            className="flex-1 font-mono uppercase tracking-[0.2em]"
           />
-          <button
-            type="button"
-            onClick={claim}
-            disabled={claiming || claimed}
-            className="rounded-md bg-gray-900 text-white px-4 text-sm font-semibold disabled:opacity-40"
-          >
+          <Button onClick={claim} disabled={claiming || claimed}>
             {claimed ? "Synced" : claiming ? "Syncing…" : "Sync"}
-          </button>
+          </Button>
         </div>
-        {claimError && <p className="text-sm text-red-600">{claimError}</p>}
+        {claimError && <p className="text-sm text-error">{claimError}</p>}
         {claimed && (
-          <p className="text-sm text-green-700">
+          <p className="text-sm text-success">
             Synced. Reloading with your merged profile…
           </p>
         )}
       </div>
-    </section>
+    </Card>
   );
 }
