@@ -140,7 +140,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ items: result.items, photoUrls });
   } catch (err) {
-    const message = err instanceof ClaudeError ? err.message : "Recognition failed. Please try again.";
+    // TODO(beta): surfacing raw error details to the client for debugging.
+    // Replace with a generic message before public launch.
+    const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    const message =
+      err instanceof ClaudeError ? err.message : `Recognition failed — ${detail}`;
     console.error("recognize-equipment error:", err);
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -37,7 +37,14 @@ export default function ConfirmEquipmentPage() {
     }
     try {
       const parsed = JSON.parse(raw);
-      setItems(parsed.items ?? []);
+      // Items coming from recognition don't carry a `source` — default it,
+      // the save API requires 'recognized' | 'manual' on every item.
+      setItems(
+        (parsed.items ?? []).map((it: Partial<EditableItem>) => ({
+          source: "recognized" as const,
+          ...it,
+        }))
+      );
       setPhotoUrls(parsed.photoUrls ?? []);
     } catch {
       setItems([]);

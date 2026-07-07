@@ -28,7 +28,7 @@ export const confirmEquipmentItemSchema = z.object({
   category: equipmentCategoryEnum,
   details: z.string().default(""),
   confidence: confidenceEnum,
-  source: z.enum(["recognized", "manual"]),
+  source: z.enum(["recognized", "manual"]).default("recognized"),
 });
 
 export const confirmEquipmentRequestSchema = z.object({
