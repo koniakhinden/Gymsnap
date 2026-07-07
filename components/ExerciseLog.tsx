@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Flame } from "lucide-react";
 import type { SetLog } from "@/lib/plan-data";
 import { Button, Stepper, cn } from "@/components/ui";
 
@@ -135,47 +135,60 @@ export default function ExerciseLog({
   }
 
   return (
-    <div className="no-print mt-2 flex flex-col gap-2 rounded-field border border-divider bg-surface-sunken/40 p-2.5">
+    <div className="no-print mt-2 flex flex-col gap-1.5 rounded-field border border-divider bg-surface-sunken/40 p-2.5">
+      <div className="flex items-center gap-1.5 pl-6 text-[11px] font-medium uppercase tracking-wide text-ink-tertiary">
+        <span className="min-w-[112px]">Weight, {weightUnit}</span>
+        <span className="min-w-[112px]">Reps</span>
+      </div>
+
       {sets.map((s, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2">
-          <span className="w-11 shrink-0 text-[13px] font-medium text-ink-tertiary">
-            Set {i + 1}
+        <div key={i} className="flex items-center gap-1.5">
+          <span className="w-4 shrink-0 text-[12px] font-semibold text-ink-tertiary tabular-nums">
+            {i + 1}
           </span>
 
           <Stepper
+            compact
             ariaLabel={`set ${i + 1} weight`}
             value={s.weight}
             min={0}
             step={weightStep}
-            suffix={weightUnit}
             onChange={(v) => update(i, { weight: v })}
           />
 
           <Stepper
+            compact
             ariaLabel={`set ${i + 1} reps`}
             value={s.reps}
             min={REP_MIN}
             max={REP_MAX}
             step={1}
-            suffix="reps"
+            disabled={s.toFailure}
             onChange={(v) => update(i, { reps: v })}
           />
 
           <button
             type="button"
             aria-pressed={s.toFailure}
+            aria-label="To failure"
+            title="To failure"
             onClick={() => update(i, { toFailure: !s.toFailure })}
             className={cn(
-              "inline-flex min-h-[36px] select-none items-center rounded-pill border px-3 text-[13px] font-medium transition-colors",
+              "flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-btn border transition-colors",
               s.toFailure
-                ? "border-accent-border bg-accent-fill text-accent-hover"
+                ? "border-accent-border bg-accent-fill text-accent"
                 : "border-border bg-surface text-ink-tertiary hover:border-ink-disabled",
             )}
           >
-            To failure
+            <Flame size={16} strokeWidth={2} />
           </button>
         </div>
       ))}
+
+      <p className="pl-6 text-[11px] text-ink-tertiary">
+        <Flame size={11} strokeWidth={2} className="mb-0.5 mr-0.5 inline" />
+        = to failure · 0 {weightUnit} = bodyweight
+      </p>
 
       {error && <p className="text-[13px] text-error">{error}</p>}
 

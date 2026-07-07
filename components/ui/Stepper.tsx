@@ -4,8 +4,8 @@ import { Minus, Plus } from "lucide-react";
 import { cn } from "./cn";
 
 /*
- * Stepper — large −/+ number control for fast on-phone entry. Tap targets are
- * 44px so it's comfortable mid-workout. Used for logging actual weight & reps.
+ * Stepper — −/+ number control for fast on-phone entry. Default tap targets are
+ * 44px; `compact` shrinks to 40px so two steppers fit on one row when logging.
  */
 export function Stepper({
   value,
@@ -16,6 +16,7 @@ export function Stepper({
   disabled,
   suffix,
   ariaLabel,
+  compact,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -25,10 +26,14 @@ export function Stepper({
   disabled?: boolean;
   suffix?: string;
   ariaLabel?: string;
+  compact?: boolean;
 }) {
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   // Avoid floating-point drift on fractional steps (e.g. 2.5 kg).
   const round = (v: number) => Math.round(v * 100) / 100;
+
+  const btn = compact ? "h-10 w-9" : "h-11 w-11";
+  const valueBox = compact ? "min-w-[40px] text-[14px]" : "min-w-[72px] text-[15px]";
 
   return (
     <div
@@ -42,22 +47,35 @@ export function Stepper({
         aria-label={ariaLabel ? `Decrease ${ariaLabel}` : "Decrease"}
         disabled={disabled || value <= min}
         onClick={() => onChange(clamp(round(value - step)))}
-        className="flex h-11 w-11 items-center justify-center rounded-l-btn text-ink-secondary transition-colors hover:bg-surface-sunken active:bg-border disabled:cursor-not-allowed disabled:text-ink-disabled"
+        className={cn(
+          "flex items-center justify-center rounded-l-btn text-ink-secondary transition-colors hover:bg-surface-sunken active:bg-border disabled:cursor-not-allowed disabled:text-ink-disabled",
+          btn,
+        )}
       >
-        <Minus size={18} strokeWidth={2.5} />
+        <Minus size={compact ? 16 : 18} strokeWidth={2.5} />
       </button>
-      <div className="min-w-[72px] select-none px-1 text-center text-[15px] font-semibold tabular-nums text-ink">
+      <div
+        className={cn(
+          "select-none px-1 text-center font-semibold tabular-nums text-ink",
+          valueBox,
+        )}
+      >
         {value}
-        {suffix ? <span className="ml-0.5 text-[13px] font-medium text-ink-tertiary">{suffix}</span> : null}
+        {suffix ? (
+          <span className="ml-0.5 text-[12px] font-medium text-ink-tertiary">{suffix}</span>
+        ) : null}
       </div>
       <button
         type="button"
         aria-label={ariaLabel ? `Increase ${ariaLabel}` : "Increase"}
         disabled={disabled || value >= max}
         onClick={() => onChange(clamp(round(value + step)))}
-        className="flex h-11 w-11 items-center justify-center rounded-r-btn text-ink-secondary transition-colors hover:bg-surface-sunken active:bg-border disabled:cursor-not-allowed disabled:text-ink-disabled"
+        className={cn(
+          "flex items-center justify-center rounded-r-btn text-ink-secondary transition-colors hover:bg-surface-sunken active:bg-border disabled:cursor-not-allowed disabled:text-ink-disabled",
+          btn,
+        )}
       >
-        <Plus size={18} strokeWidth={2.5} />
+        <Plus size={compact ? 16 : 18} strokeWidth={2.5} />
       </button>
     </div>
   );
