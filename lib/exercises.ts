@@ -44,6 +44,29 @@ const MACHINE_TYPES: RegExp[] = [
   /preacher curl machine/i,
 ];
 
+// The "cable" tag would otherwise unlock every cable exercise in the library,
+// including ones that need non-standard setups (cable deadlifts, cable squats,
+// cable chest press between towers...). A basic pulley station (lat pulldown +
+// low row + adjustable pulleys) reliably supports only these movements:
+const CABLE_MOVEMENTS: RegExp[] = [
+  /pull-?down/i,
+  /\brow\b|rows\b/i,
+  /push-?down/i,
+  /face pull/i,
+  /curl/i,
+  /lateral raise|front raise/i,
+  /rear delt/i,
+  /reverse fl?ye?s?/i,
+  /crunch/i,
+  /triceps? extension/i,
+  /pull-?through/i,
+  /kickback/i,
+  /shrug/i,
+  /wood ?chop/i,
+  /upright row/i,
+  /external rotation|internal rotation/i,
+];
+
 function gymText(item: GymEquipmentRef): string {
   return `${item.name} ${item.details ?? ""} ${item.category}`;
 }
@@ -61,8 +84,9 @@ export function resolveAllowedEquipmentTags(gymItems: GymEquipmentRef[]): string
 
 export async function getEligibleExercises(gymItems: GymEquipmentRef[]) {
   const tags = resolveAllowedEquipmentTags(gymItems);
+  const hasCable = tags.includes("cable");
   const allowed = [...ALWAYS_ALLOWED_EQUIPMENT, ...tags].filter(
-    (v): v is string => v !== null
+    (v): v is string => v !== null && v !== "cable"
   );
 
   const rows = await db
@@ -70,8 +94,21 @@ export async function getEligibleExercises(gymItems: GymEquipmentRef[]) {
     .from(exercises)
     .where(or(isNull(exercises.equipment), inArray(exercises.equipment, allowed)));
 
-  // Machine exercises: only those whose machine type is present in the gym.
   const gymHaystack = gymItems.map(gymText).join(" | ");
+
+  // Cable exercises: only basic pulley-station movements from the whitelist.
+  let allowedCableRows: typeof rows = [];
+  if (hasCable) {
+    const cableRows = await db
+      .select()
+      .from(exercises)
+      .where(eq(exercises.equipment, "cable"));
+    allowedCableRows = cableRows.filter((ex) =>
+      CABLE_MOVEMENTS.some((movement) => movement.test(ex.name))
+    );
+  }
+
+  // Machine exercises: only those whose machine type is present in the gym.
   const machineRows = await db
     .select()
     .from(exercises)
@@ -80,7 +117,7 @@ export async function getEligibleExercises(gymItems: GymEquipmentRef[]) {
     MACHINE_TYPES.some((type) => type.test(gymHaystack) && type.test(ex.name))
   );
 
-  return [...rows, ...allowedMachineRows];
+  return [...rows, ...allowedCableRows, ...allowedMachineRows];
 }
 
 export function formatExerciseCompactList(
