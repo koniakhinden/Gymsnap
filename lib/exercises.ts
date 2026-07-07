@@ -1,40 +1,59 @@
 import { db } from "./db";
 import { exercises } from "./db/schema";
-import { inArray, or, isNull } from "drizzle-orm";
+import { inArray, or, isNull, eq } from "drizzle-orm";
 
 export type GymEquipmentRef = {
   name: string;
   category: "cardio" | "strength_machine" | "free_weights" | "accessories";
+  details?: string | null;
 };
 
 const ALWAYS_ALLOWED_EQUIPMENT = ["body only", "other", null] as const;
 
 const EQUIPMENT_MATCHERS: { tag: string; pattern: RegExp }[] = [
   { tag: "dumbbell", pattern: /dumbbell/i },
-  { tag: "barbell", pattern: /barbell/i },
+  { tag: "barbell", pattern: /barbell|olympic bar|half rack|power rack|squat rack/i },
   { tag: "kettlebells", pattern: /kettlebell/i },
-  { tag: "cable", pattern: /cable/i },
-  { tag: "machine", pattern: /machine|smith|leg press|lat pulldown/i },
+  { tag: "cable", pattern: /cable|pulley|functional trainer|lat pull|pulldown|low row/i },
   { tag: "bands", pattern: /band/i },
-  { tag: "medicine ball", pattern: /medicine ball/i },
+  { tag: "medicine ball", pattern: /medicine ball|med ball/i },
   { tag: "exercise ball", pattern: /exercise ball|stability ball|swiss ball/i },
-  { tag: "e-z curl bar", pattern: /e-?z curl/i },
+  { tag: "e-z curl bar", pattern: /e-?z (curl )?bar/i },
   { tag: "foam roll", pattern: /foam roll/i },
 ];
+
+// In the exercise library, equipment === "machine" means a specific dedicated
+// machine (leg press, leg curl, smith...). A generic strength_machine gym item
+// (usually a cable tower) must NOT unlock every machine exercise. A machine
+// exercise is allowed only when the same machine type is matched BOTH in some
+// gym item's text AND in the exercise name.
+const MACHINE_TYPES: RegExp[] = [
+  /smith/i,
+  /leg press/i,
+  /leg extension/i,
+  /leg curl/i,
+  /hack squat/i,
+  /pec deck|butterfly|chest fly machine/i,
+  /chest press|bench press machine/i,
+  /shoulder press machine|machine shoulder/i,
+  /calf (raise|press)/i,
+  /assisted (pull-?up|chin|dip)/i,
+  /row machine|seated row/i,
+  /ab crunch machine|crunch machine/i,
+  /hip (ab|ad)duct/i,
+  /preacher curl machine/i,
+];
+
+function gymText(item: GymEquipmentRef): string {
+  return `${item.name} ${item.details ?? ""} ${item.category}`;
+}
 
 export function resolveAllowedEquipmentTags(gymItems: GymEquipmentRef[]): string[] {
   const tags = new Set<string>();
   for (const item of gymItems) {
+    const text = gymText(item);
     for (const matcher of EQUIPMENT_MATCHERS) {
-      if (matcher.pattern.test(item.name) || matcher.pattern.test(item.category)) {
-        tags.add(matcher.tag);
-      }
-    }
-    if (item.category === "strength_machine") tags.add("machine");
-    if (item.category === "free_weights") {
-      // generic free weights mention without a specific matcher still unlocks dumbbell/barbell exercises
-      if (/dumbbell/i.test(item.name)) tags.add("dumbbell");
-      if (/barbell/i.test(item.name)) tags.add("barbell");
+      if (matcher.pattern.test(text)) tags.add(matcher.tag);
     }
   }
   return [...tags];
@@ -42,17 +61,26 @@ export function resolveAllowedEquipmentTags(gymItems: GymEquipmentRef[]): string
 
 export async function getEligibleExercises(gymItems: GymEquipmentRef[]) {
   const tags = resolveAllowedEquipmentTags(gymItems);
-  const allowed = [...ALWAYS_ALLOWED_EQUIPMENT, ...tags];
+  const allowed = [...ALWAYS_ALLOWED_EQUIPMENT, ...tags].filter(
+    (v): v is string => v !== null
+  );
+
   const rows = await db
     .select()
     .from(exercises)
-    .where(
-      or(
-        isNull(exercises.equipment),
-        inArray(exercises.equipment, allowed.filter((v): v is string => v !== null))
-      )
-    );
-  return rows;
+    .where(or(isNull(exercises.equipment), inArray(exercises.equipment, allowed)));
+
+  // Machine exercises: only those whose machine type is present in the gym.
+  const gymHaystack = gymItems.map(gymText).join(" | ");
+  const machineRows = await db
+    .select()
+    .from(exercises)
+    .where(eq(exercises.equipment, "machine"));
+  const allowedMachineRows = machineRows.filter((ex) =>
+    MACHINE_TYPES.some((type) => type.test(gymHaystack) && type.test(ex.name))
+  );
+
+  return [...rows, ...allowedMachineRows];
 }
 
 export function formatExerciseCompactList(

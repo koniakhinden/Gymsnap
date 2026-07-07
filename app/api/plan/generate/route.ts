@@ -189,7 +189,7 @@ export async function POST() {
     }
 
     const eligible = await getEligibleExercises(
-      gymData.items.map((i) => ({ name: i.name, category: i.category }))
+      gymData.items.map((i) => ({ name: i.name, category: i.category, details: i.details }))
     );
     const validIds = new Set(eligible.map((e) => e.id));
     const compactList = formatExerciseCompactList(eligible);

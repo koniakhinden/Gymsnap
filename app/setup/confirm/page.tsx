@@ -31,24 +31,40 @@ export default function ConfirmEquipmentPage() {
 
   useEffect(() => {
     const raw = sessionStorage.getItem("gymsnap:recognized");
-    if (!raw) {
-      setItems([]);
-      return;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        // Items coming from recognition don't carry a `source` — default it,
+        // the save API requires 'recognized' | 'manual' on every item.
+        setItems(
+          (parsed.items ?? []).map((it: Partial<EditableItem>) => ({
+            source: "recognized" as const,
+            ...it,
+          }))
+        );
+        setPhotoUrls(parsed.photoUrls ?? []);
+        return;
+      } catch {
+        // fall through to loading the saved gym
+      }
     }
-    try {
-      const parsed = JSON.parse(raw);
-      // Items coming from recognition don't carry a `source` — default it,
-      // the save API requires 'recognized' | 'manual' on every item.
-      setItems(
-        (parsed.items ?? []).map((it: Partial<EditableItem>) => ({
-          source: "recognized" as const,
-          ...it,
-        }))
-      );
-      setPhotoUrls(parsed.photoUrls ?? []);
-    } catch {
-      setItems([]);
-    }
+    // No fresh recognition in this session — load the last saved gym so the
+    // user can review and edit it. Saving creates a new gym snapshot.
+    fetch("/api/gym")
+      .then((r) => r.json())
+      .then((data) => {
+        const saved = (data?.items ?? []) as Array<Partial<EditableItem>>;
+        setItems(
+          saved.map((it) => ({
+            name: it.name ?? "",
+            category: (it.category as EditableItem["category"]) ?? "accessories",
+            details: it.details ?? "",
+            confidence: (it.confidence as EditableItem["confidence"]) ?? "high",
+            source: (it.source as EditableItem["source"]) ?? "recognized",
+          }))
+        );
+      })
+      .catch(() => setItems([]));
   }, []);
 
   function updateItem(index: number, patch: Partial<EditableItem>) {

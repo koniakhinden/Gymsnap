@@ -133,13 +133,17 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      equipmentItems = gymData.items.map((i) => ({ name: i.name, category: i.category }));
+      equipmentItems = gymData.items.map((i) => ({
+        name: i.name,
+        category: i.category,
+        details: i.details,
+      }));
     } else if (parsed.equipmentMode === "photo") {
       equipmentItems = parsed.equipmentItems;
     } // "none" → bodyweight only, equipmentItems stays []
 
     const eligible = await getEligibleExercises(
-      equipmentItems.map((i) => ({ name: i.name, category: i.category }))
+      equipmentItems.map((i) => ({ name: i.name, category: i.category, details: i.details }))
     );
     const validIds = new Set(eligible.map((e) => e.id));
     const compactList = formatExerciseCompactList(eligible);

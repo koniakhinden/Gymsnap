@@ -12,6 +12,26 @@ const PROGRESS_MESSAGES = [
   "Writing up your week...",
 ];
 
+const EQUIPMENT_LABELS: Record<string, string> = {
+  "body only": "Bodyweight",
+  cable: "Cable station",
+  machine: "Machine",
+  dumbbell: "Dumbbells",
+  barbell: "Barbell",
+  kettlebells: "Kettlebell",
+  "medicine ball": "Medicine ball",
+  "exercise ball": "Exercise ball",
+  bands: "Band",
+  "e-z curl bar": "EZ bar",
+  "foam roll": "Foam roller",
+  other: "Other",
+};
+
+function formatEquipmentLabel(equipment: string | null | undefined): string | null {
+  if (!equipment) return null;
+  return EQUIPMENT_LABELS[equipment] ?? equipment;
+}
+
 export default function PlanPage() {
   const [week, setWeek] = useState<FullWeek | null | undefined>(undefined);
   const [loadingWeek, setLoadingWeek] = useState(true);
@@ -156,6 +176,7 @@ export default function PlanPage() {
                 {day.exercises.map((ex) => {
                   const name = ex.nameOverride ?? ex.exercise?.name ?? "Exercise";
                   const images = ex.exercise?.images ?? [];
+                  const equipmentLabel = formatEquipmentLabel(ex.exercise?.equipment);
                   return (
                     <div
                       key={ex.id}
@@ -176,8 +197,13 @@ export default function PlanPage() {
                         </button>
                       )}
                       <div className="flex-1 text-sm">
-                        <p className="font-medium flex items-center gap-1.5">
+                        <p className="font-medium flex items-center gap-1.5 flex-wrap">
                           {name}
+                          {equipmentLabel && (
+                            <span className="text-xs rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 px-1.5 py-0.5">
+                              {equipmentLabel}
+                            </span>
+                          )}
                           {ex.unverified && (
                             <span className="text-xs rounded-full bg-yellow-100 text-yellow-700 px-1.5 py-0.5">
                               Unverified

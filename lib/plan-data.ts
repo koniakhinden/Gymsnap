@@ -44,6 +44,7 @@ export type FullExerciseEntry = {
     name: string;
     images: string[];
     instructions: string[];
+    equipment: string | null;
   } | null;
 };
 
@@ -130,6 +131,7 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
               name: exerciseRow.name,
               images: exerciseRow.images,
               instructions: exerciseRow.instructions,
+              equipment: exerciseRow.equipment,
             }
           : null,
       });

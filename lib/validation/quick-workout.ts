@@ -44,6 +44,7 @@ export const quickEquipmentModeEnum = z.enum(["saved", "photo", "none"]);
 export const quickEquipmentItemSchema = z.object({
   name: z.string().min(1),
   category: equipmentCategoryEnum,
+  details: z.string().nullish(),
 });
 
 export const quickTimeEnum = z.union([
