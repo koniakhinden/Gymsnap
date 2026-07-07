@@ -289,6 +289,20 @@ export default function QuickWorkoutPage() {
     }
   }
 
+  async function openHistory(item: HistoryItem) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/quick-workout/${item.id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load the workout.");
+      setWorkout(data.workout);
+      setExpanded({});
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  }
+
   function repeat(item: HistoryItem) {
     setWorkout(null);
     setError(null);
@@ -694,13 +708,22 @@ export default function QuickWorkoutPage() {
                     {item.focusChips.length > 0 ? ` · ${item.focusChips.join(", ")}` : ""}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => repeat(item)}
-                  className="shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium"
-                >
-                  Repeat
-                </button>
+                <div className="shrink-0 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openHistory(item)}
+                    className="rounded-lg bg-gray-900 text-white px-3 py-1.5 text-xs font-medium"
+                  >
+                    Open
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => repeat(item)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium"
+                  >
+                    Repeat
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
