@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
+import DisclaimerGate from "@/components/DisclaimerGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,8 +47,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+        <div className="no-print mx-auto w-full max-w-md px-4 pt-2 -mb-1 flex justify-end">
+          <span className="text-[10px] font-bold tracking-widest uppercase bg-amber-100 text-amber-800 rounded-full px-2 py-0.5">
+            Beta
+          </span>
+        </div>
         <div className="flex-1 mx-auto w-full max-w-md pb-2">{children}</div>
         <BottomNav />
+        <DisclaimerGate />
       </body>
     </html>
   );
