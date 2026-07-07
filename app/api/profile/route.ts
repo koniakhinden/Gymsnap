@@ -5,8 +5,8 @@ import { profileInputSchema } from "@/lib/validation/profile";
 import { desc } from "drizzle-orm";
 
 export async function GET() {
-  const profile = db.select().from(profiles).orderBy(desc(profiles.id)).limit(1).get();
-  return NextResponse.json({ profile: profile ?? null });
+  const rows = await db.select().from(profiles).orderBy(desc(profiles.id)).limit(1);
+  return NextResponse.json({ profile: rows[0] ?? null });
 }
 
 export async function POST(req: NextRequest) {
@@ -14,11 +14,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = profileInputSchema.parse(body);
     const now = new Date().toISOString();
-    const profile = db
+    const [profile] = await db
       .insert(profiles)
       .values({ ...parsed, updatedAt: now })
-      .returning()
-      .get();
+      .returning();
     return NextResponse.json({ profile });
   } catch (err) {
     console.error("save profile error:", err);

@@ -13,17 +13,18 @@ import {
 import { desc, eq } from "drizzle-orm";
 
 export async function getLatestProfile() {
-  return db.select().from(profiles).orderBy(desc(profiles.id)).limit(1).get();
+  const rows = await db.select().from(profiles).orderBy(desc(profiles.id)).limit(1);
+  return rows[0];
 }
 
 export async function getLatestGymWithEquipment() {
-  const gym = db.select().from(gyms).orderBy(desc(gyms.id)).limit(1).get();
+  const gymRows = await db.select().from(gyms).orderBy(desc(gyms.id)).limit(1);
+  const gym = gymRows[0];
   if (!gym) return null;
-  const items = db
+  const items = await db
     .select()
     .from(equipmentItems)
-    .where(eq(equipmentItems.gymId, gym.id))
-    .all();
+    .where(eq(equipmentItems.gymId, gym.id));
   return { gym, items };
 }
 
@@ -78,36 +79,41 @@ export type FullWeek = {
 };
 
 async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek> {
-  const dayRows = db
+  const dayRows = await db
     .select()
     .from(days)
     .where(eq(days.weekId, weekRow.id))
-    .orderBy(days.orderIndex)
-    .all();
+    .orderBy(days.orderIndex);
 
-  const checkin = db
+  const checkinRows = await db
     .select()
     .from(checkins)
-    .where(eq(checkins.weekId, weekRow.id))
-    .get();
+    .where(eq(checkins.weekId, weekRow.id));
+  const checkin = checkinRows[0];
 
   const dayCheckinRows = checkin
-    ? db.select().from(dayCheckins).where(eq(dayCheckins.checkinId, checkin.id)).all()
+    ? await db.select().from(dayCheckins).where(eq(dayCheckins.checkinId, checkin.id))
     : [];
 
-  const fullDays: FullDay[] = dayRows.map((day) => {
-    const entryRows = db
+  const fullDays: FullDay[] = [];
+  for (const day of dayRows) {
+    const entryRows = await db
       .select()
       .from(exerciseEntries)
       .where(eq(exerciseEntries.dayId, day.id))
-      .orderBy(exerciseEntries.orderIndex)
-      .all();
+      .orderBy(exerciseEntries.orderIndex);
 
-    const fullEntries: FullExerciseEntry[] = entryRows.map((entry) => {
-      const exerciseRow = entry.exerciseId
-        ? db.select().from(exercises).where(eq(exercises.id, entry.exerciseId)).get()
-        : undefined;
-      return {
+    const fullEntries: FullExerciseEntry[] = [];
+    for (const entry of entryRows) {
+      let exerciseRow: typeof exercises.$inferSelect | undefined;
+      if (entry.exerciseId) {
+        const rows = await db
+          .select()
+          .from(exercises)
+          .where(eq(exercises.id, entry.exerciseId));
+        exerciseRow = rows[0];
+      }
+      fullEntries.push({
         id: entry.id,
         orderIndex: entry.orderIndex,
         exerciseId: entry.exerciseId,
@@ -122,16 +128,16 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
           ? {
               id: exerciseRow.id,
               name: exerciseRow.name,
-              images: JSON.parse(exerciseRow.images || "[]"),
-              instructions: JSON.parse(exerciseRow.instructions || "[]"),
+              images: exerciseRow.images,
+              instructions: exerciseRow.instructions,
             }
           : null,
-      };
-    });
+      });
+    }
 
     const dayCheckin = dayCheckinRows.find((dc) => dc.dayId === day.id);
 
-    return {
+    fullDays.push({
       id: day.id,
       orderIndex: day.orderIndex,
       dayLabel: day.dayLabel,
@@ -148,8 +154,8 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
         : null,
       exercises: fullEntries,
       checkinStatus: dayCheckin ? dayCheckin.status : null,
-    };
-  });
+    });
+  }
 
   return {
     id: weekRow.id,
@@ -169,36 +175,36 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
 }
 
 export async function getLatestWeek(): Promise<FullWeek | null> {
-  const weekRow = db.select().from(weeks).orderBy(desc(weeks.weekNumber)).limit(1).get();
+  const rows = await db.select().from(weeks).orderBy(desc(weeks.weekNumber)).limit(1);
+  const weekRow = rows[0];
   if (!weekRow) return null;
   return hydrateWeek(weekRow);
 }
 
 export async function getWeekByNumber(weekNumber: number): Promise<FullWeek | null> {
-  const weekRow = db
-    .select()
-    .from(weeks)
-    .where(eq(weeks.weekNumber, weekNumber))
-    .get();
+  const rows = await db.select().from(weeks).where(eq(weeks.weekNumber, weekNumber));
+  const weekRow = rows[0];
   if (!weekRow) return null;
   return hydrateWeek(weekRow);
 }
 
 export async function getAllWeeksSummary() {
-  const rows = db.select().from(weeks).orderBy(desc(weeks.weekNumber)).all();
-  return rows.map((w) => {
-    const checkin = db.select().from(checkins).where(eq(checkins.weekId, w.id)).get();
-    return {
+  const rows = await db.select().from(weeks).orderBy(desc(weeks.weekNumber));
+  const result = [];
+  for (const w of rows) {
+    const checkinRows = await db.select().from(checkins).where(eq(checkins.weekId, w.id));
+    result.push({
       id: w.id,
       weekNumber: w.weekNumber,
       createdAt: w.createdAt,
-      hasCheckin: !!checkin,
-    };
-  });
+      hasCheckin: checkinRows.length > 0,
+    });
+  }
+  return result;
 }
 
 export async function getAllWeeksHistoryForPrompt(): Promise<FullWeek[]> {
-  const rows = db.select().from(weeks).orderBy(weeks.weekNumber).all();
+  const rows = await db.select().from(weeks).orderBy(weeks.weekNumber);
   const result: FullWeek[] = [];
   for (const row of rows) {
     result.push(await hydrateWeek(row));

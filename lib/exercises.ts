@@ -56,11 +56,11 @@ export async function getEligibleExercises(gymItems: GymEquipmentRef[]) {
 }
 
 export function formatExerciseCompactList(
-  rows: { id: string; name: string; equipment: string | null; primaryMuscles: string }[]
+  rows: { id: string; name: string; equipment: string | null; primaryMuscles: string[] }[]
 ): string {
   return rows
     .map((r) => {
-      const muscles = JSON.parse(r.primaryMuscles || "[]").join(",");
+      const muscles = (r.primaryMuscles ?? []).join(",");
       return `${r.id}\t${r.name}\t${r.equipment ?? "none"}\t${muscles}`;
     })
     .join("\n");

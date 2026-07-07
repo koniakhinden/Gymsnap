@@ -6,6 +6,10 @@ import {
   getAllWeeksSummary,
 } from "@/lib/plan-data";
 
+// Reads live app state on every request — must not be statically prerendered
+// at build time (when a real DATABASE_URL may not be reachable/desired anyway).
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const [profile, gymData, latestWeek, weeksSummary] = await Promise.all([
     getLatestProfile(),

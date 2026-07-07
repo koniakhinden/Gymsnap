@@ -5,15 +5,15 @@ import { confirmEquipmentRequestSchema } from "@/lib/validation/equipment";
 import { desc, eq } from "drizzle-orm";
 
 export async function GET() {
-  const gym = db.select().from(gyms).orderBy(desc(gyms.id)).limit(1).get();
+  const gymRows = await db.select().from(gyms).orderBy(desc(gyms.id)).limit(1);
+  const gym = gymRows[0];
   if (!gym) {
     return NextResponse.json({ gym: null, items: [] });
   }
-  const items = db
+  const items = await db
     .select()
     .from(equipmentItems)
-    .where(eq(equipmentItems.gymId, gym.id))
-    .all();
+    .where(eq(equipmentItems.gymId, gym.id));
   return NextResponse.json({ gym, items });
 }
 
@@ -23,24 +23,22 @@ export async function POST(req: NextRequest) {
     const parsed = confirmEquipmentRequestSchema.parse(body);
 
     const now = new Date().toISOString();
-    const gym = db.insert(gyms).values({ createdAt: now }).returning().get();
+    const [gym] = await db.insert(gyms).values({ createdAt: now }).returning();
 
     for (const item of parsed.items) {
-      db.insert(equipmentItems)
-        .values({
-          gymId: gym.id,
-          name: item.name,
-          category: item.category,
-          details: item.details,
-          confidence: item.confidence,
-          source: item.source,
-          createdAt: now,
-        })
-        .run();
+      await db.insert(equipmentItems).values({
+        gymId: gym.id,
+        name: item.name,
+        category: item.category,
+        details: item.details,
+        confidence: item.confidence,
+        source: item.source,
+        createdAt: now,
+      });
     }
 
-    for (const filename of parsed.photoFilenames) {
-      db.insert(gymPhotos).values({ gymId: gym.id, filename, createdAt: now }).run();
+    for (const url of parsed.photoUrls) {
+      await db.insert(gymPhotos).values({ gymId: gym.id, url, createdAt: now });
     }
 
     return NextResponse.json({ gymId: gym.id });

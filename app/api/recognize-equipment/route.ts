@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import path from "node:path";
-import fs from "node:fs/promises";
 import sharp from "sharp";
+import { put } from "@vercel/blob";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import Anthropic from "@anthropic-ai/sdk";
 import { callClaudeForTool, ClaudeError } from "@/lib/anthropic";
@@ -16,7 +15,6 @@ export const runtime = "nodejs";
 const MAX_FILES = 10;
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/heic", "image/heif"]);
-const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 
 const SYSTEM_PROMPT = `You are a gym equipment recognition assistant for a fitness app called GymSnap.
 You will be shown 1-10 photos of the same home or commercial gym, taken from different angles.
@@ -46,25 +44,15 @@ const equipmentTool: Anthropic.Tool = {
 // Claude vision downscales anything above ~1568px on the long side anyway,
 // so resizing + recompressing here loses no recognition quality but keeps
 // the total request far below the API size limit (fixes 413 request_too_large).
-async function toClaudeImageBlock(
-  buffer: Buffer,
-  mimeType: string
-): Promise<Anthropic.ImageBlockParam> {
+// The same compressed buffer is what gets uploaded to Vercel Blob, so we never
+// store multi-megabyte originals.
+async function compressImage(buffer: Buffer, mimeType: string): Promise<Buffer> {
   try {
-    const outBuffer = await sharp(buffer)
+    return await sharp(buffer)
       .rotate() // respect EXIF orientation before stripping metadata
       .resize(1568, 1568, { fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 80 })
       .toBuffer();
-
-    return {
-      type: "image",
-      source: {
-        type: "base64",
-        media_type: "image/jpeg",
-        data: outBuffer.toString("base64"),
-      },
-    };
   } catch {
     if (mimeType === "image/heic" || mimeType === "image/heif") {
       throw new ClaudeError(
@@ -73,6 +61,17 @@ async function toClaudeImageBlock(
     }
     throw new ClaudeError("Couldn't process one of the photos. Please re-export it as JPEG and try again.");
   }
+}
+
+function toClaudeImageBlock(compressedJpeg: Buffer): Anthropic.ImageBlockParam {
+  return {
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: "image/jpeg",
+      data: compressedJpeg.toString("base64"),
+    },
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -104,19 +103,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
-
-    const savedFilenames: string[] = [];
+    const photoUrls: string[] = [];
     const imageBlocks: Anthropic.ImageBlockParam[] = [];
 
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = path.extname(file.name) || ".jpg";
-      const filename = `${randomUUID()}${ext}`;
-      await fs.writeFile(path.join(UPLOAD_DIR, filename), buffer);
-      savedFilenames.push(filename);
+      const compressed = await compressImage(buffer, file.type);
 
-      imageBlocks.push(await toClaudeImageBlock(buffer, file.type));
+      const blob = await put(`gym-photos/${randomUUID()}.jpg`, compressed, {
+        access: "public",
+        contentType: "image/jpeg",
+      });
+      photoUrls.push(blob.url);
+
+      imageBlocks.push(toClaudeImageBlock(compressed));
     }
 
     const content: Anthropic.ContentBlockParam[] = [
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       validate: (input) => recognizeEquipmentResponseSchema.parse(input),
     });
 
-    return NextResponse.json({ items: result.items, photoFilenames: savedFilenames });
+    return NextResponse.json({ items: result.items, photoUrls });
   } catch (err) {
     const message = err instanceof ClaudeError ? err.message : "Recognition failed. Please try again.";
     console.error("recognize-equipment error:", err);

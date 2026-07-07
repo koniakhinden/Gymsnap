@@ -1,21 +1,21 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, serial, text, integer, boolean, jsonb, timestamp, real } from "drizzle-orm/pg-core";
 
-export const gyms = sqliteTable("gyms", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  createdAt: text("created_at").notNull(),
+export const gyms = pgTable("gyms", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
 });
 
-export const gymPhotos = sqliteTable("gym_photos", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const gymPhotos = pgTable("gym_photos", {
+  id: serial("id").primaryKey(),
   gymId: integer("gym_id")
     .notNull()
     .references(() => gyms.id, { onDelete: "cascade" }),
-  filename: text("filename").notNull(),
-  createdAt: text("created_at").notNull(),
+  url: text("url").notNull(),
+  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
 });
 
-export const equipmentItems = sqliteTable("equipment_items", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const equipmentItems = pgTable("equipment_items", {
+  id: serial("id").primaryKey(),
   gymId: integer("gym_id")
     .notNull()
     .references(() => gyms.id, { onDelete: "cascade" }),
@@ -26,11 +26,11 @@ export const equipmentItems = sqliteTable("equipment_items", {
   details: text("details").default(""),
   confidence: text("confidence", { enum: ["high", "medium", "low"] }).notNull(),
   source: text("source", { enum: ["recognized", "manual"] }).notNull(),
-  createdAt: text("created_at").notNull(),
+  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
 });
 
-export const profiles = sqliteTable("profiles", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const profiles = pgTable("profiles", {
+  id: serial("id").primaryKey(),
   ageGroup: text("age_group", {
     enum: ["25-34", "35-44", "45-54", "55+"],
   }).notNull(),
@@ -48,24 +48,18 @@ export const profiles = sqliteTable("profiles", {
     enum: ["30-40", "45-60", "60-90"],
   }).notNull(),
   injuriesText: text("injuries_text").default(""),
-  injuryKnees: integer("injury_knees", { mode: "boolean" }).notNull().default(false),
-  injuryLowerBack: integer("injury_lower_back", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  injuryShoulders: integer("injury_shoulders", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  cardioIncline: integer("cardio_incline", { mode: "boolean" }).notNull().default(false),
-  cardioRunning: integer("cardio_running", { mode: "boolean" }).notNull().default(false),
-  cardioBike: integer("cardio_bike", { mode: "boolean" }).notNull().default(false),
-  cardioElliptical: integer("cardio_elliptical", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  cardioMinimal: integer("cardio_minimal", { mode: "boolean" }).notNull().default(false),
-  updatedAt: text("updated_at").notNull(),
+  injuryKnees: boolean("injury_knees").notNull().default(false),
+  injuryLowerBack: boolean("injury_lower_back").notNull().default(false),
+  injuryShoulders: boolean("injury_shoulders").notNull().default(false),
+  cardioIncline: boolean("cardio_incline").notNull().default(false),
+  cardioRunning: boolean("cardio_running").notNull().default(false),
+  cardioBike: boolean("cardio_bike").notNull().default(false),
+  cardioElliptical: boolean("cardio_elliptical").notNull().default(false),
+  cardioMinimal: boolean("cardio_minimal").notNull().default(false),
+  updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true }).notNull(),
 });
 
-export const exercises = sqliteTable("exercises", {
+export const exercises = pgTable("exercises", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   equipment: text("equipment"),
@@ -73,20 +67,20 @@ export const exercises = sqliteTable("exercises", {
   level: text("level"),
   force: text("force"),
   mechanic: text("mechanic"),
-  primaryMuscles: text("primary_muscles").notNull().default("[]"),
-  secondaryMuscles: text("secondary_muscles").notNull().default("[]"),
-  instructions: text("instructions").notNull().default("[]"),
-  images: text("images").notNull().default("[]"),
+  primaryMuscles: jsonb("primary_muscles").$type<string[]>().notNull().default([]),
+  secondaryMuscles: jsonb("secondary_muscles").$type<string[]>().notNull().default([]),
+  instructions: jsonb("instructions").$type<string[]>().notNull().default([]),
+  images: jsonb("images").$type<string[]>().notNull().default([]),
 });
 
-export const weeks = sqliteTable("weeks", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const weeks = pgTable("weeks", {
+  id: serial("id").primaryKey(),
   weekNumber: integer("week_number").notNull(),
-  createdAt: text("created_at").notNull(),
+  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
 });
 
-export const days = sqliteTable("days", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const days = pgTable("days", {
+  id: serial("id").primaryKey(),
   weekId: integer("week_id")
     .notNull()
     .references(() => weeks.id, { onDelete: "cascade" }),
@@ -101,8 +95,8 @@ export const days = sqliteTable("days", {
   cardioTargetHr: text("cardio_target_hr"),
 });
 
-export const exerciseEntries = sqliteTable("exercise_entries", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const exerciseEntries = pgTable("exercise_entries", {
+  id: serial("id").primaryKey(),
   dayId: integer("day_id")
     .notNull()
     .references(() => days.id, { onDelete: "cascade" }),
@@ -114,11 +108,11 @@ export const exerciseEntries = sqliteTable("exercise_entries", {
   weight: text("weight").notNull().default(""),
   restSec: integer("rest_sec").notNull().default(60),
   notes: text("notes").default(""),
-  unverified: integer("unverified", { mode: "boolean" }).notNull().default(false),
+  unverified: boolean("unverified").notNull().default(false),
 });
 
-export const checkins = sqliteTable("checkins", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const checkins = pgTable("checkins", {
+  id: serial("id").primaryKey(),
   weekId: integer("week_id")
     .notNull()
     .references(() => weeks.id, { onDelete: "cascade" }),
@@ -126,11 +120,11 @@ export const checkins = sqliteTable("checkins", {
   wellbeing: integer("wellbeing").notNull(),
   kneesRating: integer("knees_rating").notNull(),
   lowerBackRating: integer("lower_back_rating").notNull(),
-  createdAt: text("created_at").notNull(),
+  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
 });
 
-export const dayCheckins = sqliteTable("day_checkins", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const dayCheckins = pgTable("day_checkins", {
+  id: serial("id").primaryKey(),
   checkinId: integer("checkin_id")
     .notNull()
     .references(() => checkins.id, { onDelete: "cascade" }),

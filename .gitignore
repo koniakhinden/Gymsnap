@@ -40,8 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# app data
-/data/*.db
-/data/uploads/*
-!/data/uploads/.gitkeep
+# app data (cached exercise library download used by scripts/seed.ts)
 /data/exercises.json

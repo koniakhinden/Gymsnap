@@ -9,18 +9,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = checkinInputSchema.parse(body);
 
-    const existing = db
+    const existingRows = await db
       .select()
       .from(checkins)
-      .where(eq(checkins.weekId, parsed.weekId))
-      .get();
+      .where(eq(checkins.weekId, parsed.weekId));
+    const existing = existingRows[0];
     if (existing) {
-      db.delete(dayCheckins).where(eq(dayCheckins.checkinId, existing.id)).run();
-      db.delete(checkins).where(eq(checkins.id, existing.id)).run();
+      await db.delete(dayCheckins).where(eq(dayCheckins.checkinId, existing.id));
+      await db.delete(checkins).where(eq(checkins.id, existing.id));
     }
 
     const now = new Date().toISOString();
-    const checkin = db
+    const [checkin] = await db
       .insert(checkins)
       .values({
         weekId: parsed.weekId,
@@ -30,13 +30,12 @@ export async function POST(req: NextRequest) {
         lowerBackRating: parsed.lowerBackRating,
         createdAt: now,
       })
-      .returning()
-      .get();
+      .returning();
 
     for (const d of parsed.days) {
-      db.insert(dayCheckins)
-        .values({ checkinId: checkin.id, dayId: d.dayId, status: d.status })
-        .run();
+      await db
+        .insert(dayCheckins)
+        .values({ checkinId: checkin.id, dayId: d.dayId, status: d.status });
     }
 
     return NextResponse.json({ checkinId: checkin.id });

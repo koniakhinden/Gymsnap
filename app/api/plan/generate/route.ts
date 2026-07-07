@@ -154,15 +154,14 @@ ${compactList}`;
     const { plan, hasUnverified } = await withRetryValidation(system, userMessage, validIds);
 
     const now = new Date().toISOString();
-    const weekRow = db
+    const [weekRow] = await db
       .insert(weeks)
       .values({ weekNumber: nextWeekNumber, createdAt: now })
-      .returning()
-      .get();
+      .returning();
 
     for (let dayIndex = 0; dayIndex < plan.days.length; dayIndex++) {
       const planDay = plan.days[dayIndex];
-      const dayRow = db
+      const [dayRow] = await db
         .insert(days)
         .values({
           weekId: weekRow.id,
@@ -176,25 +175,22 @@ ${compactList}`;
           cardioIncline: planDay.cardio?.incline ?? null,
           cardioTargetHr: planDay.cardio?.targetHr ?? null,
         })
-        .returning()
-        .get();
+        .returning();
 
       for (let exIndex = 0; exIndex < planDay.exercises.length; exIndex++) {
         const ex = planDay.exercises[exIndex];
-        db.insert(exerciseEntries)
-          .values({
-            dayId: dayRow.id,
-            orderIndex: exIndex,
-            exerciseId: ex.exerciseId,
-            nameOverride: ex.nameOverride,
-            sets: ex.sets,
-            reps: ex.reps,
-            weight: ex.weight,
-            restSec: ex.restSec,
-            notes: ex.notes,
-            unverified: ex.exerciseId === null && ex.nameOverride?.startsWith("Unverified") ? true : false,
-          })
-          .run();
+        await db.insert(exerciseEntries).values({
+          dayId: dayRow.id,
+          orderIndex: exIndex,
+          exerciseId: ex.exerciseId,
+          nameOverride: ex.nameOverride,
+          sets: ex.sets,
+          reps: ex.reps,
+          weight: ex.weight,
+          restSec: ex.restSec,
+          notes: ex.notes,
+          unverified: ex.exerciseId === null && ex.nameOverride?.startsWith("Unverified") ? true : false,
+        });
       }
     }
 

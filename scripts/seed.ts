@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { db } from "../lib/db";
-import { exercises } from "../lib/db/schema";
+import { sql } from "drizzle-orm";
 
 const EXERCISES_URL =
   "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json";
@@ -38,31 +37,57 @@ async function ensureExercisesFile() {
 }
 
 async function seed() {
+  try {
+    process.loadEnvFile(".env.local");
+  } catch {
+    // .env.local not present — assume env vars are already exported
+  }
+
+  // Dynamic imports so DATABASE_URL is loaded before lib/db reads it.
+  const { db } = await import("../lib/db");
+  const { exercises } = await import("../lib/db/schema");
+
   await ensureExercisesFile();
   const raw = JSON.parse(fs.readFileSync(EXERCISES_PATH, "utf-8")) as RawExercise[];
-  console.log(`Loaded ${raw.length} exercises. Seeding database...`);
+  console.log(`Loaded ${raw.length} exercises. Upserting into Postgres...`);
 
-  db.delete(exercises).run();
+  const rows = raw.map((r) => ({
+    id: r.id,
+    name: r.name,
+    equipment: r.equipment ?? null,
+    category: r.category ?? null,
+    level: r.level ?? null,
+    force: r.force ?? null,
+    mechanic: r.mechanic ?? null,
+    primaryMuscles: r.primaryMuscles ?? [],
+    secondaryMuscles: r.secondaryMuscles ?? [],
+    instructions: r.instructions ?? [],
+    images: r.images ?? [],
+  }));
 
-  db.transaction((tx) => {
-    for (const r of raw) {
-      tx.insert(exercises)
-        .values({
-          id: r.id,
-          name: r.name,
-          equipment: r.equipment ?? null,
-          category: r.category ?? null,
-          level: r.level ?? null,
-          force: r.force ?? null,
-          mechanic: r.mechanic ?? null,
-          primaryMuscles: JSON.stringify(r.primaryMuscles ?? []),
-          secondaryMuscles: JSON.stringify(r.secondaryMuscles ?? []),
-          instructions: JSON.stringify(r.instructions ?? []),
-          images: JSON.stringify(r.images ?? []),
-        })
-        .run();
-    }
-  });
+  const BATCH_SIZE = 200;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    await db
+      .insert(exercises)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: exercises.id,
+        set: {
+          name: sql`excluded.name`,
+          equipment: sql`excluded.equipment`,
+          category: sql`excluded.category`,
+          level: sql`excluded.level`,
+          force: sql`excluded.force`,
+          mechanic: sql`excluded.mechanic`,
+          primaryMuscles: sql`excluded.primary_muscles`,
+          secondaryMuscles: sql`excluded.secondary_muscles`,
+          instructions: sql`excluded.instructions`,
+          images: sql`excluded.images`,
+        },
+      });
+    console.log(`  upserted ${Math.min(i + BATCH_SIZE, rows.length)}/${rows.length}`);
+  }
 
   console.log(`Seeded ${raw.length} exercises into the database.`);
 }

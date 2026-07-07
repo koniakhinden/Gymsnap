@@ -1,16 +1,13 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import path from "node:path";
-import fs from "node:fs";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
-const dataDir = path.join(process.cwd(), "data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL is not set. Add your Neon connection string to .env.local (see .env.local.example)."
+  );
 }
 
-const sqlite = new Database(path.join(dataDir, "gymsnap.db"));
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+const sql = neon(process.env.DATABASE_URL);
 
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle(sql, { schema });

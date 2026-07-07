@@ -25,7 +25,7 @@ const CATEGORY_LABELS: Record<EquipmentCategory, string> = {
 export default function ConfirmEquipmentPage() {
   const router = useRouter();
   const [items, setItems] = useState<EditableItem[] | null>(null);
-  const [photoFilenames, setPhotoFilenames] = useState<string[]>([]);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +38,7 @@ export default function ConfirmEquipmentPage() {
     try {
       const parsed = JSON.parse(raw);
       setItems(parsed.items ?? []);
-      setPhotoFilenames(parsed.photoFilenames ?? []);
+      setPhotoUrls(parsed.photoUrls ?? []);
     } catch {
       setItems([]);
     }
@@ -84,7 +84,7 @@ export default function ConfirmEquipmentPage() {
       const res = await fetch("/api/gym", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, photoFilenames }),
+        body: JSON.stringify({ items, photoUrls }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save.");

@@ -33,7 +33,7 @@ export const confirmEquipmentItemSchema = z.object({
 
 export const confirmEquipmentRequestSchema = z.object({
   items: z.array(confirmEquipmentItemSchema).min(1),
-  photoFilenames: z.array(z.string()).default([]),
+  photoUrls: z.array(z.string()).default([]),
 });
 
 export type ConfirmEquipmentItem = z.infer<typeof confirmEquipmentItemSchema>;

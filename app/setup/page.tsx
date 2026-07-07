@@ -102,7 +102,7 @@ export default function SetupPage() {
       }
       sessionStorage.setItem(
         "gymsnap:recognized",
-        JSON.stringify({ items: data.items, photoFilenames: data.photoFilenames })
+        JSON.stringify({ items: data.items, photoUrls: data.photoUrls })
       );
       router.push("/setup/confirm");
     } catch (err) {
