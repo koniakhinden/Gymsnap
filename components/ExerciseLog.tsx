@@ -8,7 +8,8 @@ import { Button, Stepper, cn } from "@/components/ui";
 type Unit = "kg" | "lbs";
 
 type SetEntry = {
-  weight: number | null;
+  // Kept as a number for the stepper; 0 is stored as null (bodyweight) on save.
+  weight: number;
   reps: number;
   toFailure: boolean;
 };
@@ -52,21 +53,20 @@ export default function ExerciseLog({
 }) {
   const weightStep = weightUnit === "kg" ? 2.5 : 5;
   const planned = parsePlannedReps(plannedReps);
-  const plannedW = parsePlannedWeight(plannedWeight);
-  const usesWeight = plannedW !== null;
+  const plannedW = parsePlannedWeight(plannedWeight); // null = bodyweight in the plan
 
   function buildInitial(): SetEntry[] {
     if (initialLogs.length > 0) {
       return [...initialLogs]
         .sort((a, b) => a.setNumber - b.setNumber)
         .map((l) => ({
-          weight: l.weight,
+          weight: l.weight ?? 0,
           reps: l.reps ?? planned.reps,
           toFailure: l.toFailure,
         }));
     }
     return Array.from({ length: Math.max(1, plannedSets) }, () => ({
-      weight: usesWeight ? plannedW : null,
+      weight: plannedW ?? 0,
       reps: planned.reps,
       toFailure: planned.toFailure,
     }));
@@ -100,7 +100,7 @@ export default function ExerciseLog({
           weightUnit,
           sets: sets.map((s, i) => ({
             setNumber: i + 1,
-            weight: s.weight,
+            weight: s.weight > 0 ? s.weight : null,
             reps: s.reps,
             toFailure: s.toFailure,
           })),
@@ -142,16 +142,14 @@ export default function ExerciseLog({
             Set {i + 1}
           </span>
 
-          {usesWeight && (
-            <Stepper
-              ariaLabel={`set ${i + 1} weight`}
-              value={s.weight ?? 0}
-              min={0}
-              step={weightStep}
-              suffix={weightUnit}
-              onChange={(v) => update(i, { weight: v })}
-            />
-          )}
+          <Stepper
+            ariaLabel={`set ${i + 1} weight`}
+            value={s.weight}
+            min={0}
+            step={weightStep}
+            suffix={weightUnit}
+            onChange={(v) => update(i, { weight: v })}
+          />
 
           <Stepper
             ariaLabel={`set ${i + 1} reps`}
