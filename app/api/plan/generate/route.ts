@@ -201,8 +201,11 @@ ${compactList}`;
     return NextResponse.json({ weekId: weekRow.id, weekNumber: nextWeekNumber, hasUnverified });
   } catch (err) {
     console.error("plan generate error:", err);
+    // TODO(beta): surfacing raw error details to the client for debugging.
+    // Replace with a generic message before public launch.
+    const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     const message =
-      err instanceof ClaudeError ? err.message : "Failed to generate the plan. Please try again.";
+      err instanceof ClaudeError ? err.message : `Failed to generate the plan — ${detail}`;
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
