@@ -19,7 +19,7 @@ export default function ImageLightbox({
   if (images.length === 0) return null;
   return (
     <div
-      className="no-print fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4"
+      className="no-print fixed inset-0 z-50 flex flex-col items-center justify-center bg-ink/80 p-4"
       onClick={onClose}
     >
       <div className="flex flex-col sm:flex-row gap-2 items-center justify-center w-full max-w-5xl">
