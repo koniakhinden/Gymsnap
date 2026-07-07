@@ -11,7 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "GymSnap",
-  description: "AI trainer that builds a weekly workout plan from a photo of your gym.",
+  description:
+    "Equipment-based exercise library: photograph your gym and get exercise suggestions for the equipment you have.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/icon-192.png",
@@ -48,6 +49,11 @@ export default function RootLayout({
             </span>
           </div>
           <div className="flex-1 pb-2">{children}</div>
+          <footer className="no-print px-4 pb-2 text-center">
+            <a href="/legal" className="text-[11px] text-ink-tertiary underline">
+              Terms of Use · Privacy · Disclaimers
+            </a>
+          </footer>
           <BottomNav />
         </div>
         <DisclaimerGate />

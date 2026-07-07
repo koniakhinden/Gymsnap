@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { Modal, Button } from "@/components/ui";
 
-const STORAGE_KEY = "gymsnap_disclaimer_accepted_v1";
+const STORAGE_KEY = "gymsnap_disclaimer_accepted_v2";
 
 /**
  * Blocking first-visit disclaimer. The app is unusable until the visitor
@@ -51,13 +51,23 @@ export default function DisclaimerGate() {
     >
       <div className="flex flex-col gap-2.5 text-xs leading-relaxed text-ink-secondary">
         <p>
+          <strong className="text-ink">Informational purpose only.</strong>{" "}
+          GymSnap is an equipment-based exercise library for educational and
+          informational purposes. It is not an online trainer or coaching
+          service and does not replace individual consultation with a qualified
+          professional. It does not analyze your medical indicators, physical
+          condition, fitness level, limitations, or injuries — exercise
+          suggestions are generated solely from the equipment you select, and
+          no results are promised or guaranteed.
+        </p>
+        <p>
           <strong className="text-ink">Not medical advice.</strong> GymSnap
-          provides AI-generated, general fitness information for educational
-          purposes only. It is not medical advice, diagnosis, or treatment, and
-          it is not a substitute for guidance from a physician or qualified
-          health professional. Consult your doctor before starting this or any
-          exercise program — especially if you have (or suspect) any medical
-          condition, injury, or are pregnant.
+          provides AI-generated, general fitness information only. It is not
+          medical advice, diagnosis, or treatment, and it is not a substitute
+          for guidance from a physician or qualified health professional.
+          Consult your doctor before starting this or any exercise activity —
+          especially if you have (or suspect) any medical condition, injury, or
+          are pregnant.
         </p>
         <p>
           <strong className="text-ink">Assumption of risk.</strong> Physical
@@ -91,6 +101,13 @@ export default function DisclaimerGate() {
         </p>
       </div>
 
+      <p className="mt-3 text-xs text-ink-secondary">
+        Full terms:{" "}
+        <a href="/legal" className="text-accent underline" target="_blank">
+          Terms of Use, Privacy &amp; Cookie Policy, Disclaimers
+        </a>
+      </p>
+
       <label className="mt-4 flex items-start gap-2 text-xs text-ink-secondary">
         <input
           type="checkbox"
@@ -99,8 +116,8 @@ export default function DisclaimerGate() {
           className="mt-0.5 h-4 w-4 accent-accent"
         />
         <span>
-          I am 18 or older, I have read and understood the above, and I
-          voluntarily accept all risks of using GymSnap.
+          I am 18 or older, I have read and understood the above and the full
+          terms, and I voluntarily accept all risks of using GymSnap.
         </span>
       </label>
     </Modal>

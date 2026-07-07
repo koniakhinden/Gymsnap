@@ -30,7 +30,8 @@ export default async function DashboardPage() {
       <header>
         <h1 className="text-2xl font-bold tracking-[-0.02em]">GymSnap</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          Your AI trainer, built from a photo of your gym.
+          Exercise suggestions for the equipment you actually have — from a
+          photo of your gym.
         </p>
       </header>
 
