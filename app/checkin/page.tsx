@@ -138,18 +138,52 @@ export default function CheckinPage() {
       )}
 
       <div className="flex flex-col gap-2">
-        {week.days.map((d) => (
-          <Card key={d.id} className="p-3">
-            <p className="mb-2 text-sm font-medium">
-              {d.dayLabel} — {d.focus}
-            </p>
-            <SegmentControl<DayStatus>
-              options={STATUS_OPTIONS}
-              value={statuses[d.id] ?? "completed"}
-              onChange={(s) => setStatuses((prev) => ({ ...prev, [d.id]: s }))}
-            />
-          </Card>
-        ))}
+        {week.days.map((d) => {
+          const logged = d.exercises.filter((e) => e.logs.length > 0);
+          return (
+            <Card key={d.id} className="p-3">
+              <p className="mb-2 text-sm font-medium">
+                {d.dayLabel} — {d.focus}
+              </p>
+              <SegmentControl<DayStatus>
+                options={STATUS_OPTIONS}
+                value={statuses[d.id] ?? "completed"}
+                onChange={(s) => setStatuses((prev) => ({ ...prev, [d.id]: s }))}
+              />
+              {logged.length > 0 && (
+                <div className="mt-2.5 border-t border-divider pt-2">
+                  <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-tertiary">
+                    You logged
+                  </p>
+                  <ul className="flex flex-col gap-0.5">
+                    {logged.map((e) => (
+                      <li key={e.id} className="text-[13px] text-ink-secondary">
+                        <span className="font-medium text-ink">
+                          {e.nameOverride ?? e.exercise?.name ?? "Exercise"}
+                        </span>
+                        {"  "}
+                        {e.logs
+                          .slice()
+                          .sort((a, b) => a.setNumber - b.setNumber)
+                          .map((l) => {
+                            const load =
+                              l.weight != null ? `${l.weight}${l.weightUnit}` : "BW";
+                            const reps = l.toFailure
+                              ? "to failure"
+                              : l.reps != null
+                                ? `${l.reps}`
+                                : "?";
+                            return `${load}×${reps}`;
+                          })
+                          .join(", ")}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Card>
+          );
+        })}
       </div>
 
       <Field label="Comments">
