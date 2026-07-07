@@ -24,7 +24,7 @@ import {
 } from "@/lib/plan-prompt";
 
 export const runtime = "nodejs";
-const MAX_TOKENS = 8000;
+const MAX_TOKENS = 16000;
 
 const planTool: Anthropic.Tool = {
   name: "report_week_plan",
@@ -91,6 +91,14 @@ async function requestPlanFromClaude(
     tool_choice: { type: "tool", name: planTool.name },
   });
 
+  if (response.stop_reason === "max_tokens") {
+    // The tool call was cut off mid-JSON — no amount of repair can recover
+    // a truncated payload, so fail fast with a distinct, retryable error.
+    throw new ClaudeError(
+      "Claude's response was truncated before the plan finished generating (hit max_tokens)."
+    );
+  }
+
   const toolUse = response.content.find(
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
   );
@@ -143,8 +151,15 @@ async function withRetryValidation(
   try {
     plan = await requestPlanFromClaude(system, userMessage, expectedWeek);
   } catch (err) {
-    // One retry when the model returned a malformed plan (schema mismatch).
-    if (err instanceof ClaudeError && err.message.includes("invalid plan format")) {
+    // One retry when the model returned a malformed or truncated plan.
+    if (err instanceof ClaudeError && err.message.includes("truncated")) {
+      plan = await requestPlanFromClaude(
+        system,
+        userMessage,
+        expectedWeek,
+        `Your previous response was cut off before it finished (it hit the output length limit). Return the COMPLETE week plan again, but keep "notes", "warmup", and "cooldown" text brief (one short sentence each) so the full plan fits.`
+      );
+    } else if (err instanceof ClaudeError && err.message.includes("invalid plan format")) {
       plan = await requestPlanFromClaude(
         system,
         userMessage,
