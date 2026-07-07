@@ -207,7 +207,7 @@ export default function ConfirmEquipmentPage() {
                 variant="secondary"
                 onClick={() => removeItem(i)}
                 aria-label="Delete"
-                className="!px-3 !py-2 !text-sm !text-error hover:!border-error/40"
+                className="!min-h-[44px] !px-3 !text-sm !text-error hover:!border-error/40"
               >
                 <Trash2 size={16} strokeWidth={2} />
                 Delete

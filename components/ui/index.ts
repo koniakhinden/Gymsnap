@@ -10,6 +10,7 @@ export { SegmentControl } from "./SegmentControl";
 export type { SegmentOption } from "./SegmentControl";
 export { Field, Input, Textarea, Select } from "./Field";
 export { Slider } from "./Slider";
+export { Stepper } from "./Stepper";
 export { Skeleton, SkeletonCardRow, SkeletonPills } from "./Skeleton";
 export { EmptyState } from "./EmptyState";
 export { Modal } from "./Modal";

@@ -4,13 +4,14 @@ import {
   days,
   exerciseEntries,
   exercises,
+  exerciseSetLogs,
   checkins,
   dayCheckins,
   profiles,
   gyms,
   equipmentItems,
 } from "./db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 export async function getLatestProfile(userId: string) {
   const rows = await db
@@ -38,6 +39,16 @@ export async function getLatestGymWithEquipment(userId: string) {
   return { gym, items };
 }
 
+export type SetLog = {
+  id: number;
+  setNumber: number;
+  weight: number | null;
+  weightUnit: "kg" | "lbs";
+  reps: number | null;
+  toFailure: boolean;
+  loggedAt: string;
+};
+
 export type FullExerciseEntry = {
   id: number;
   orderIndex: number;
@@ -56,6 +67,7 @@ export type FullExerciseEntry = {
     instructions: string[];
     equipment: string | null;
   } | null;
+  logs: SetLog[];
 };
 
 export type FullDay = {
@@ -114,6 +126,16 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
       .where(eq(exerciseEntries.dayId, day.id))
       .orderBy(exerciseEntries.orderIndex);
 
+    const entryIds = entryRows.map((e) => e.id);
+    const logRows =
+      entryIds.length > 0
+        ? await db
+            .select()
+            .from(exerciseSetLogs)
+            .where(inArray(exerciseSetLogs.entryId, entryIds))
+            .orderBy(exerciseSetLogs.setNumber)
+        : [];
+
     const fullEntries: FullExerciseEntry[] = [];
     for (const entry of entryRows) {
       let exerciseRow: typeof exercises.$inferSelect | undefined;
@@ -144,6 +166,17 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
               equipment: exerciseRow.equipment,
             }
           : null,
+        logs: logRows
+          .filter((l) => l.entryId === entry.id)
+          .map((l) => ({
+            id: l.id,
+            setNumber: l.setNumber,
+            weight: l.weight,
+            weightUnit: l.weightUnit,
+            reps: l.reps,
+            toFailure: l.toFailure,
+            loggedAt: l.loggedAt,
+          })),
       });
     }
 
@@ -238,6 +271,95 @@ export async function weekBelongsToUser(userId: string, weekId: number): Promise
     .where(and(eq(weeks.id, weekId), eq(weeks.userId, userId)))
     .limit(1);
   return rows.length > 0;
+}
+
+/** True if the given exercise entry belongs to this user (via day → week). */
+export async function entryBelongsToUser(
+  userId: string,
+  entryId: number
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: exerciseEntries.id })
+    .from(exerciseEntries)
+    .innerJoin(days, eq(exerciseEntries.dayId, days.id))
+    .innerJoin(weeks, eq(days.weekId, weeks.id))
+    .where(and(eq(exerciseEntries.id, entryId), eq(weeks.userId, userId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+export type DiaryExercise = {
+  entryId: number;
+  name: string;
+  weekNumber: number;
+  dayLabel: string;
+  sets: SetLog[];
+};
+
+export type DiaryDay = {
+  date: string; // YYYY-MM-DD
+  exercises: DiaryExercise[];
+};
+
+/**
+ * Workout diary: all logged sets for the user, grouped by the calendar date
+ * they were logged (newest first), then by exercise entry.
+ */
+export async function getDiary(userId: string): Promise<DiaryDay[]> {
+  const rows = await db
+    .select({
+      log: exerciseSetLogs,
+      entryId: exerciseEntries.id,
+      nameOverride: exerciseEntries.nameOverride,
+      exerciseName: exercises.name,
+      dayLabel: days.dayLabel,
+      weekNumber: weeks.weekNumber,
+    })
+    .from(exerciseSetLogs)
+    .innerJoin(exerciseEntries, eq(exerciseSetLogs.entryId, exerciseEntries.id))
+    .innerJoin(days, eq(exerciseEntries.dayId, days.id))
+    .innerJoin(weeks, eq(days.weekId, weeks.id))
+    .leftJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
+    .where(eq(exerciseSetLogs.userId, userId))
+    .orderBy(desc(exerciseSetLogs.loggedAt));
+
+  const byDate = new Map<string, Map<number, DiaryExercise>>();
+  for (const r of rows) {
+    const date = r.log.loggedAt.slice(0, 10);
+    let dayMap = byDate.get(date);
+    if (!dayMap) {
+      dayMap = new Map();
+      byDate.set(date, dayMap);
+    }
+    let ex = dayMap.get(r.entryId);
+    if (!ex) {
+      ex = {
+        entryId: r.entryId,
+        name: r.nameOverride ?? r.exerciseName ?? "Exercise",
+        weekNumber: r.weekNumber,
+        dayLabel: r.dayLabel,
+        sets: [],
+      };
+      dayMap.set(r.entryId, ex);
+    }
+    ex.sets.push({
+      id: r.log.id,
+      setNumber: r.log.setNumber,
+      weight: r.log.weight,
+      weightUnit: r.log.weightUnit,
+      reps: r.log.reps,
+      toFailure: r.log.toFailure,
+      loggedAt: r.log.loggedAt,
+    });
+  }
+
+  return [...byDate.entries()].map(([date, dayMap]) => ({
+    date,
+    exercises: [...dayMap.values()].map((ex) => ({
+      ...ex,
+      sets: ex.sets.sort((a, b) => a.setNumber - b.setNumber),
+    })),
+  }));
 }
 
 export async function getAllWeeksHistoryForPrompt(userId: string): Promise<FullWeek[]> {

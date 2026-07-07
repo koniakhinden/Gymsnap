@@ -122,6 +122,30 @@ export const exerciseEntries = pgTable("exercise_entries", {
   unverified: boolean("unverified").notNull().default(false),
 });
 
+// Actual performed sets for a planned exercise entry — the workout diary.
+// The plan (exercise_entries) holds the prescription; this holds what the user
+// really did. loggedAt is set server-side so the diary date is automatic.
+export const exerciseSetLogs = pgTable(
+  "exercise_set_logs",
+  {
+    id: serial("id").primaryKey(),
+    entryId: integer("entry_id")
+      .notNull()
+      .references(() => exerciseEntries.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    setNumber: integer("set_number").notNull(),
+    weight: real("weight"),
+    weightUnit: text("weight_unit", { enum: ["kg", "lbs"] }).notNull(),
+    reps: integer("reps"),
+    toFailure: boolean("to_failure").notNull().default(false),
+    loggedAt: timestamp("logged_at", { mode: "string", withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("exercise_set_logs_user_id_idx").on(t.userId),
+    index("exercise_set_logs_entry_id_idx").on(t.entryId),
+  ]
+);
+
 export const checkins = pgTable("checkins", {
   id: serial("id").primaryKey(),
   weekId: integer("week_id")

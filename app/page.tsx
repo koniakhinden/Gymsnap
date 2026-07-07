@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera, User, Zap, ChevronRight } from "lucide-react";
+import { Camera, User, Zap, ChevronRight, NotebookPen } from "lucide-react";
 import {
   getLatestProfile,
   getLatestGymWithEquipment,
@@ -41,14 +41,12 @@ export default async function DashboardPage() {
           tone={gymDone ? "success" : "neutral"}
           title="Gym setup"
           subtitle={gymDone ? `${gymData?.items.length ?? 0} items` : "Not started"}
+          href={gymDone ? "/setup/confirm" : "/setup"}
           action={
-            <Link
-              href={gymDone ? "/setup/confirm" : "/setup"}
-              className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent transition-colors hover:text-accent-hover"
-            >
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent">
               {gymDone ? "Review" : "Start"}
               <ChevronRight size={16} strokeWidth={2} />
-            </Link>
+            </span>
           }
         />
         <StatusCard
@@ -56,14 +54,25 @@ export default async function DashboardPage() {
           tone={profileDone ? "success" : "neutral"}
           title="Profile"
           subtitle={profileDone ? "Saved" : "Not started"}
+          href="/profile"
           action={
-            <Link
-              href="/profile"
-              className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent transition-colors hover:text-accent-hover"
-            >
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent">
               {profileDone ? "Edit" : "Start"}
               <ChevronRight size={16} strokeWidth={2} />
-            </Link>
+            </span>
+          }
+        />
+        <StatusCard
+          icon={NotebookPen}
+          tone="neutral"
+          title="Workout diary"
+          subtitle="What you actually did"
+          href="/diary"
+          action={
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent">
+              Open
+              <ChevronRight size={16} strokeWidth={2} />
+            </span>
           }
         />
       </div>

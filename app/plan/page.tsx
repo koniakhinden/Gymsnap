@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Printer, Trash2 } from "lucide-react";
 import ImageLightbox, { exerciseImageUrl } from "@/components/ImageLightbox";
+import ExerciseLog from "@/components/ExerciseLog";
 import type { FullWeek } from "@/lib/plan-data";
 import { Button, Card, Badge, Skeleton } from "@/components/ui";
 
@@ -36,6 +37,7 @@ function formatEquipmentLabel(equipment: string | null | undefined): string | nu
 
 export default function PlanPage() {
   const [week, setWeek] = useState<FullWeek | null | undefined>(undefined);
+  const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
   const [loadingWeek, setLoadingWeek] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [progressIndex, setProgressIndex] = useState(0);
@@ -57,6 +59,7 @@ export default function PlanPage() {
       const res = await fetch(url);
       const data = await res.json();
       setWeek(data.week);
+      if (data.weightUnit) setWeightUnit(data.weightUnit);
     } finally {
       setLoadingWeek(false);
     }
@@ -137,7 +140,7 @@ export default function PlanPage() {
             <Button
               variant="secondary"
               onClick={() => window.print()}
-              className="!px-3 !py-1.5 !text-sm"
+              className="!min-h-[44px] !px-3.5 !text-sm"
             >
               <Printer size={16} strokeWidth={2} />
               Print / Save as PDF
@@ -146,7 +149,7 @@ export default function PlanPage() {
               variant="secondary"
               loading={deleting}
               onClick={handleDeleteWeek}
-              className="!px-3 !py-1.5 !text-sm !text-error hover:!border-error/40"
+              className="!min-h-[44px] !px-3.5 !text-sm !text-error hover:!border-error/40"
             >
               {!deleting && <Trash2 size={16} strokeWidth={2} />}
               {deleting ? "Deleting..." : "Delete"}
@@ -259,6 +262,14 @@ export default function PlanPage() {
                         {ex.notes && (
                           <p className="mt-0.5 text-xs text-ink-tertiary">{ex.notes}</p>
                         )}
+                        <ExerciseLog
+                          entryId={ex.id}
+                          plannedSets={ex.sets}
+                          plannedReps={ex.reps}
+                          plannedWeight={ex.weight}
+                          weightUnit={weightUnit}
+                          initialLogs={ex.logs}
+                        />
                       </div>
                     </div>
                   );

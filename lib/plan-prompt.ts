@@ -51,10 +51,22 @@ export function buildHistorySummary(history: FullWeek[]): string {
       const dayLines = week.days
         .map((d) => {
           const status = d.checkinStatus ?? "no check-in";
-          const exNames = d.exercises
-            .map((e) => e.nameOverride ?? e.exercise?.name ?? "unknown exercise")
-            .join(", ");
-          return `  - ${d.dayLabel} (${d.focus}): ${status}. Exercises: ${exNames || "none"}`;
+          const exParts = d.exercises.map((e) => {
+            const name = e.nameOverride ?? e.exercise?.name ?? "unknown exercise";
+            if (e.logs.length === 0) return name;
+            // Actual performed sets, so progression reacts to real numbers.
+            const done = e.logs
+              .map((l) => {
+                const w = l.weight != null ? `${l.weight}${l.weightUnit}` : "bw";
+                const r = l.toFailure ? "AMRAP" : l.reps != null ? `${l.reps}` : "?";
+                return `${w}x${r}`;
+              })
+              .join(", ");
+            return `${name} [actual: ${done}]`;
+          });
+          return `  - ${d.dayLabel} (${d.focus}): ${status}. Exercises: ${
+            exParts.join("; ") || "none"
+          }`;
         })
         .join("\n");
       const checkinLine = week.checkin
