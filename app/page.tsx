@@ -47,6 +47,19 @@ export default async function DashboardPage() {
         />
       </div>
 
+      <Link
+        href="/quick"
+        className="rounded-xl bg-cyan-600 text-white p-4 flex items-center justify-between"
+      >
+        <span className="flex flex-col">
+          <span className="font-semibold">Train now ⚡</span>
+          <span className="text-xs text-cyan-100 mt-0.5">
+            One session from whatever you have on hand
+          </span>
+        </span>
+        <span className="text-lg">→</span>
+      </Link>
+
       <section className="rounded-xl bg-white border border-gray-200 p-4">
         <h2 className="font-semibold mb-1">Current week</h2>
         {latestWeek ? (
