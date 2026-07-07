@@ -11,6 +11,9 @@ import {
 } from "@/lib/validation/equipment";
 
 export const runtime = "nodejs";
+// Claude vision on multiple photos takes 20-60s; the default function
+// duration limit cuts the request off before it finishes.
+export const maxDuration = 60;
 
 const MAX_FILES = 10;
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;

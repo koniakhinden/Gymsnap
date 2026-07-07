@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+
+// Weekly plan generation is a long Claude call; don't let the default
+// function duration limit cut it off.
+export const maxDuration = 60;
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { db } from "@/lib/db";
 import { weeks, days, exerciseEntries } from "@/lib/db/schema";
