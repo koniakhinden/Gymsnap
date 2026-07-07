@@ -1,31 +1,120 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f7f7f8;
-  --foreground: #171717;
+/*
+ * GymSnap design tokens — single source of truth.
+ * Extracted from "GymSnap Design System (standalone)".
+ * One accent (teal). Secondary text never lighter than #57534E (WCAG AA).
+ * Primary CTA is dark #1C1917 — teal is reserved for the "selection / activity"
+ * language, so there is only ever one strong call to action per screen.
+ */
+@theme {
+  /* Surfaces & text */
+  --color-bg: #fafaf9; /* app background */
+  --color-surface: #ffffff; /* cards */
+  --color-surface-sunken: #f5f4f2; /* segment track, muted icon wells, ghost active */
+  --color-ink: #1c1917; /* primary text */
+  --color-ink-secondary: #57534e; /* secondary text — AA floor on white */
+  --color-ink-tertiary: #78716c; /* captions, meta */
+  --color-ink-disabled: #a8a29e; /* disabled text */
+  --color-border: #e7e5e4; /* default border */
+  --color-border-strong: #d6d3d1; /* input border */
+  --color-hairline: #edebe8; /* card border */
+  --color-divider: #f4f3f1; /* subtle in-card divider */
+
+  /* Accent (teal) — selection / activity */
+  --color-accent: #0d9488; /* accent / links */
+  --color-accent-hover: #0f766e; /* link/accent hover */
+  --color-accent-border: #14b8a6; /* selected border, focus ring */
+  --color-accent-fill: #f0fdfa; /* selected fill */
+  --color-accent-subtle: #ccfbf1; /* selection / active nav icon fill */
+  --color-accent-badge-border: #99f6e4; /* BETA badge border */
+
+  /* Primary action (dark) */
+  --color-primary: #1c1917;
+  --color-primary-hover: #2a2622;
+  --color-primary-active: #0c0a09;
+
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-ink: #92400e;
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+
+  /* Radii */
+  --radius-btn: 10px;
+  --radius-card: 12px;
+  --radius-field: 10px;
+  --radius-modal: 20px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.25);
+
+  /* Type family */
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+
+  /* Motion */
+  --default-transition-duration: 150ms;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Back-compat aliases for any lingering var() references. */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent-subtle);
 }
 
 @layer components {
+  /* Legacy select helper — kept for markup still using `.select`,
+     now styled from tokens to match the Select component. */
   .select {
-    border: 1px solid var(--color-gray-300, #d1d5db);
-    border-radius: 0.375rem;
-    padding: 0.5rem 0.625rem;
-    font-size: 0.875rem;
-    background: white;
     width: 100%;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-field);
+    padding: 11px 13px;
+    font-size: 15px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
