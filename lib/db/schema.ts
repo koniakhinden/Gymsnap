@@ -133,3 +133,24 @@ export const dayCheckins = pgTable("day_checkins", {
     .references(() => days.id, { onDelete: "cascade" }),
   status: text("status", { enum: ["completed", "partial", "skipped"] }).notNull(),
 });
+
+// One-off "Train now" sessions — independent of the weekly plan flow.
+// Stores both the generated workout (result) and the inputs that produced it
+// so the /quick screen can list history and repeat a past session's inputs.
+export const quickWorkouts = pgTable("quick_workouts", {
+  id: serial("id").primaryKey(),
+  equipmentMode: text("equipment_mode", {
+    enum: ["saved", "photo", "none"],
+  }).notNull(),
+  // Human-readable list of equipment that was available for this session
+  // (empty for bodyweight-only). Kept flat so "Repeat" can restore the input.
+  equipment: jsonb("equipment")
+    .$type<{ name: string; category: string }[]>()
+    .notNull()
+    .default([]),
+  focusChips: jsonb("focus_chips").$type<string[]>().notNull().default([]),
+  focusText: text("focus_text").notNull().default(""),
+  timeMin: integer("time_min").notNull(),
+  result: jsonb("result").notNull(),
+  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
+});

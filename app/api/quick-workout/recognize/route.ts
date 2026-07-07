@@ -10,6 +10,8 @@ export const runtime = "nodejs";
 // duration limit cuts the request off before it finishes.
 export const maxDuration = 60;
 
+// Same pipeline as /api/recognize-equipment, but with the sparse "what do I have
+// right now" recognition prompt so a single band or an empty room recognizes well.
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -20,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const { items, photoUrls } = await recognizeEquipmentFromFiles(files, "gym");
+    const { items, photoUrls } = await recognizeEquipmentFromFiles(files, "quick");
     return NextResponse.json({ items, photoUrls });
   } catch (err) {
     // TODO(beta): surfacing raw error details to the client for debugging.
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
     const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     const message =
       err instanceof ClaudeError ? err.message : `Recognition failed — ${detail}`;
-    console.error("recognize-equipment error:", err);
+    console.error("quick recognize error:", err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -31,9 +31,47 @@ const planTool: Anthropic.Tool = {
   input_schema: zodToJsonSchema(weekPlanSchema, { $refStrategy: "none" }) as Anthropic.Tool.InputSchema,
 };
 
+// Claude occasionally returns tool input with minor format defects: nested
+// arrays serialized as JSON strings ("days": "[...]") or a missing "week".
+// Repair what's mechanically fixable before Zod validation.
+function tryParseJson(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function repairPlanInput(raw: unknown, expectedWeek: number): unknown {
+  const root = tryParseJson(raw);
+  if (!root || typeof root !== "object" || Array.isArray(root)) return root;
+  const obj: Record<string, unknown> = { ...(root as Record<string, unknown>) };
+
+  obj.days = tryParseJson(obj.days);
+  if (Array.isArray(obj.days)) {
+    obj.days = obj.days.map((d) => {
+      const day = tryParseJson(d);
+      if (!day || typeof day !== "object" || Array.isArray(day)) return day;
+      const dayObj: Record<string, unknown> = { ...(day as Record<string, unknown>) };
+      dayObj.exercises = tryParseJson(dayObj.exercises);
+      dayObj.cardio = tryParseJson(dayObj.cardio);
+      return dayObj;
+    });
+  }
+
+  if (obj.week === undefined || obj.week === null) {
+    obj.week = expectedWeek;
+  } else if (typeof obj.week === "string" && !Number.isNaN(Number(obj.week))) {
+    obj.week = Number(obj.week);
+  }
+  return obj;
+}
+
 async function requestPlanFromClaude(
   system: string,
   userMessage: string,
+  expectedWeek: number,
   correctionMessage?: string
 ): Promise<WeekPlan> {
   const anthropic = getAnthropicClient();
@@ -56,7 +94,11 @@ async function requestPlanFromClaude(
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
   );
   if (!toolUse) throw new ClaudeError("Claude did not return a tool call.");
-  return weekPlanSchema.parse(toolUse.input);
+  const parsed = weekPlanSchema.safeParse(repairPlanInput(toolUse.input, expectedWeek));
+  if (!parsed.success) {
+    throw new ClaudeError(`invalid plan format: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
 function findInvalidExerciseIds(plan: WeekPlan, validIds: Set<string>): string[] {
@@ -93,16 +135,32 @@ function markUnverified(plan: WeekPlan, validIds: Set<string>): WeekPlan {
 async function withRetryValidation(
   system: string,
   userMessage: string,
-  validIds: Set<string>
+  validIds: Set<string>,
+  expectedWeek: number
 ): Promise<{ plan: WeekPlan; hasUnverified: boolean }> {
-  let plan = await requestPlanFromClaude(system, userMessage);
+  let plan: WeekPlan;
+  try {
+    plan = await requestPlanFromClaude(system, userMessage, expectedWeek);
+  } catch (err) {
+    // One retry when the model returned a malformed plan (schema mismatch).
+    if (err instanceof ClaudeError && err.message.includes("invalid plan format")) {
+      plan = await requestPlanFromClaude(
+        system,
+        userMessage,
+        expectedWeek,
+        `Your previous response did not match the tool input schema (${err.message}). Return the COMPLETE week plan again, strictly following the schema: "week" must be a number, "days" must be a JSON array of day objects (never a string), and every day's "exercises" must be an array of objects.`
+      );
+    } else {
+      throw err;
+    }
+  }
   let invalid = findInvalidExerciseIds(plan, validIds);
 
   if (invalid.length > 0) {
     const correction = `Your previous plan referenced exerciseId(s) that don't exist in the valid exercise library or aren't available with the user's equipment: ${invalid.join(
       ", "
     )}. Re-generate the full week plan using only ids from the provided library, or set exerciseId to null with a nameOverride.`;
-    plan = await requestPlanFromClaude(system, userMessage, correction);
+    plan = await requestPlanFromClaude(system, userMessage, expectedWeek, correction);
     invalid = findInvalidExerciseIds(plan, validIds);
   }
 
@@ -155,7 +213,12 @@ VALID EXERCISE LIBRARY (tab-separated: id, name, equipment, primary muscles) —
 ${compactList}`;
 
     const system = buildPlanSystemPrompt();
-    const { plan, hasUnverified } = await withRetryValidation(system, userMessage, validIds);
+    const { plan, hasUnverified } = await withRetryValidation(
+      system,
+      userMessage,
+      validIds,
+      nextWeekNumber
+    );
 
     const now = new Date().toISOString();
     const [weekRow] = await db
