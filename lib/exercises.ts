@@ -15,7 +15,9 @@ const EQUIPMENT_MATCHERS: { tag: string; pattern: RegExp }[] = [
   { tag: "barbell", pattern: /barbell|olympic bar|half rack|power rack|squat rack/i },
   { tag: "kettlebells", pattern: /kettlebell/i },
   { tag: "cable", pattern: /cable|pulley|functional trainer|lat pull|pulldown|low row/i },
-  { tag: "bands", pattern: /band/i },
+  // Deliberately strict: "band" alone also appears in descriptions of TRX
+  // straps and the like, which would wrongly unlock band exercises.
+  { tag: "bands", pattern: /resistance band|exercise band|mini ?band|loop band|booty band|thera-?band/i },
   { tag: "medicine ball", pattern: /medicine ball|med ball/i },
   { tag: "exercise ball", pattern: /exercise ball|stability ball|swiss ball/i },
   { tag: "e-z curl bar", pattern: /e-?z (curl )?bar/i },

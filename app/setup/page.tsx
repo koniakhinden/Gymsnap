@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, X } from "lucide-react";
+import Link from "next/link";
+import { Camera, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui";
+
+type SavedItem = { name: string; category: string };
 
 const MAX_FILES = 10;
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
@@ -101,7 +104,17 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(false);
   const [progressIndex, setProgressIndex] = useState(0);
   const [dragActive, setDragActive] = useState(false);
+  const [savedItems, setSavedItems] = useState<SavedItem[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Show the currently saved gym below the uploader, so the Gym tab is a
+  // useful overview rather than an empty photo screen.
+  useEffect(() => {
+    fetch("/api/gym")
+      .then((r) => r.json())
+      .then((data) => setSavedItems(data?.items ?? []))
+      .catch(() => setSavedItems([]));
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -289,6 +302,36 @@ export default function SetupPage() {
           <span className="inline-block h-4 w-4 rounded-full border-2 border-accent border-t-transparent [animation:spin_0.7s_linear_infinite]" />
           {PROGRESS_MESSAGES[progressIndex]}
         </div>
+      )}
+
+      {savedItems && savedItems.length > 0 && (
+        <section className="rounded-card border border-border bg-surface p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink">
+              Your saved gym · {savedItems.length} item{savedItems.length === 1 ? "" : "s"}
+            </h2>
+            <Link
+              href="/setup/confirm"
+              className="inline-flex items-center gap-1 text-xs font-medium text-accent"
+            >
+              <Pencil size={12} strokeWidth={2} />
+              Edit list
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {savedItems.map((item, i) => (
+              <span
+                key={i}
+                className="rounded-full bg-accent-fill px-2.5 py-1 text-xs text-ink-secondary"
+              >
+                {item.name}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-ink-tertiary">
+            Recognizing new photos will replace this list after you confirm it.
+          </p>
+        </section>
       )}
     </main>
   );
