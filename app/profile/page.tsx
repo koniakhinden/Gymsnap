@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import SyncDevices from "@/components/SyncDevices";
 
 type FormState = {
   ageGroup: "25-34" | "35-44" | "45-54" | "55+";
@@ -295,6 +296,8 @@ export default function ProfilePage() {
           {saving ? "Saving..." : "Save profile"}
         </button>
       </form>
+
+      <SyncDevices />
     </main>
   );
 }

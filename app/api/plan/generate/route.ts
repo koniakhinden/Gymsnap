@@ -15,6 +15,7 @@ import {
   getAllWeeksHistoryForPrompt,
 } from "@/lib/plan-data";
 import { getEligibleExercises, formatExerciseCompactList } from "@/lib/exercises";
+import { getUserId } from "@/lib/user";
 import {
   buildProfileSummary,
   buildEquipmentSummary,
@@ -173,14 +174,15 @@ async function withRetryValidation(
 
 export async function POST() {
   try {
-    const profile = await getLatestProfile();
+    const userId = await getUserId();
+    const profile = await getLatestProfile(userId);
     if (!profile) {
       return NextResponse.json(
         { error: "Please fill out your profile before generating a plan." },
         { status: 400 }
       );
     }
-    const gymData = await getLatestGymWithEquipment();
+    const gymData = await getLatestGymWithEquipment(userId);
     if (!gymData || gymData.items.length === 0) {
       return NextResponse.json(
         { error: "Please set up your gym equipment before generating a plan." },
@@ -194,7 +196,7 @@ export async function POST() {
     const validIds = new Set(eligible.map((e) => e.id));
     const compactList = formatExerciseCompactList(eligible);
 
-    const history = await getAllWeeksHistoryForPrompt();
+    const history = await getAllWeeksHistoryForPrompt(userId);
     const nextWeekNumber =
       history.length > 0 ? Math.max(...history.map((w) => w.weekNumber)) + 1 : 1;
 
@@ -223,7 +225,7 @@ ${compactList}`;
     const now = new Date().toISOString();
     const [weekRow] = await db
       .insert(weeks)
-      .values({ weekNumber: nextWeekNumber, createdAt: now })
+      .values({ userId, weekNumber: nextWeekNumber, createdAt: now })
       .returning();
 
     for (let dayIndex = 0; dayIndex < plan.days.length; dayIndex++) {

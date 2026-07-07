@@ -10,15 +10,25 @@ import {
   gyms,
   equipmentItems,
 } from "./db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
-export async function getLatestProfile() {
-  const rows = await db.select().from(profiles).orderBy(desc(profiles.id)).limit(1);
+export async function getLatestProfile(userId: string) {
+  const rows = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .orderBy(desc(profiles.id))
+    .limit(1);
   return rows[0];
 }
 
-export async function getLatestGymWithEquipment() {
-  const gymRows = await db.select().from(gyms).orderBy(desc(gyms.id)).limit(1);
+export async function getLatestGymWithEquipment(userId: string) {
+  const gymRows = await db
+    .select()
+    .from(gyms)
+    .where(eq(gyms.userId, userId))
+    .orderBy(desc(gyms.id))
+    .limit(1);
   const gym = gymRows[0];
   if (!gym) return null;
   const items = await db
@@ -176,22 +186,37 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
   };
 }
 
-export async function getLatestWeek(): Promise<FullWeek | null> {
-  const rows = await db.select().from(weeks).orderBy(desc(weeks.weekNumber)).limit(1);
+export async function getLatestWeek(userId: string): Promise<FullWeek | null> {
+  const rows = await db
+    .select()
+    .from(weeks)
+    .where(eq(weeks.userId, userId))
+    .orderBy(desc(weeks.weekNumber))
+    .limit(1);
   const weekRow = rows[0];
   if (!weekRow) return null;
   return hydrateWeek(weekRow);
 }
 
-export async function getWeekByNumber(weekNumber: number): Promise<FullWeek | null> {
-  const rows = await db.select().from(weeks).where(eq(weeks.weekNumber, weekNumber));
+export async function getWeekByNumber(
+  userId: string,
+  weekNumber: number
+): Promise<FullWeek | null> {
+  const rows = await db
+    .select()
+    .from(weeks)
+    .where(and(eq(weeks.userId, userId), eq(weeks.weekNumber, weekNumber)));
   const weekRow = rows[0];
   if (!weekRow) return null;
   return hydrateWeek(weekRow);
 }
 
-export async function getAllWeeksSummary() {
-  const rows = await db.select().from(weeks).orderBy(desc(weeks.weekNumber));
+export async function getAllWeeksSummary(userId: string) {
+  const rows = await db
+    .select()
+    .from(weeks)
+    .where(eq(weeks.userId, userId))
+    .orderBy(desc(weeks.weekNumber));
   const result = [];
   for (const w of rows) {
     const checkinRows = await db.select().from(checkins).where(eq(checkins.weekId, w.id));
@@ -205,8 +230,22 @@ export async function getAllWeeksSummary() {
   return result;
 }
 
-export async function getAllWeeksHistoryForPrompt(): Promise<FullWeek[]> {
-  const rows = await db.select().from(weeks).orderBy(weeks.weekNumber);
+/** True if the given week row is owned by this user — used to gate check-ins. */
+export async function weekBelongsToUser(userId: string, weekId: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: weeks.id })
+    .from(weeks)
+    .where(and(eq(weeks.id, weekId), eq(weeks.userId, userId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+export async function getAllWeeksHistoryForPrompt(userId: string): Promise<FullWeek[]> {
+  const rows = await db
+    .select()
+    .from(weeks)
+    .where(eq(weeks.userId, userId))
+    .orderBy(weeks.weekNumber);
   const result: FullWeek[] = [];
   for (const row of rows) {
     result.push(await hydrateWeek(row));

@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { gyms, equipmentItems, gymPhotos } from "@/lib/db/schema";
 import { confirmEquipmentRequestSchema } from "@/lib/validation/equipment";
+import { getUserId } from "@/lib/user";
 import { desc, eq } from "drizzle-orm";
 
 export async function GET() {
-  const gymRows = await db.select().from(gyms).orderBy(desc(gyms.id)).limit(1);
+  const userId = await getUserId();
+  const gymRows = await db
+    .select()
+    .from(gyms)
+    .where(eq(gyms.userId, userId))
+    .orderBy(desc(gyms.id))
+    .limit(1);
   const gym = gymRows[0];
   if (!gym) {
     return NextResponse.json({ gym: null, items: [] });
@@ -19,11 +26,12 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getUserId();
     const body = await req.json();
     const parsed = confirmEquipmentRequestSchema.parse(body);
 
     const now = new Date().toISOString();
-    const [gym] = await db.insert(gyms).values({ createdAt: now }).returning();
+    const [gym] = await db.insert(gyms).values({ userId, createdAt: now }).returning();
 
     for (const item of parsed.items) {
       await db.insert(equipmentItems).values({

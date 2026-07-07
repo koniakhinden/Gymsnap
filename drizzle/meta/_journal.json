@@ -15,6 +15,13 @@
       "when": 1783393606625,
       "tag": "0001_spotty_greymalkin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783396954123,
+      "tag": "0002_polite_warbird",
+      "breakpoints": true
     }
   ]
 }

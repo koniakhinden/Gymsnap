@@ -2,12 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkins, dayCheckins } from "@/lib/db/schema";
 import { checkinInputSchema } from "@/lib/validation/checkin";
+import { getUserId } from "@/lib/user";
+import { weekBelongsToUser } from "@/lib/plan-data";
 import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getUserId();
     const body = await req.json();
     const parsed = checkinInputSchema.parse(body);
+
+    // Can't check in against a week you don't own.
+    if (!(await weekBelongsToUser(userId, parsed.weekId))) {
+      return NextResponse.json({ error: "Week not found." }, { status: 404 });
+    }
 
     const existingRows = await db
       .select()

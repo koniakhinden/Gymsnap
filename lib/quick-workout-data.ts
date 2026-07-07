@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { exercises, quickWorkouts } from "./db/schema";
-import { desc, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import type { QuickBlock, QuickWorkout } from "./validation/quick-workout";
 
 export type HydratedBlock = QuickBlock & {
@@ -65,13 +65,15 @@ export type QuickWorkoutHistoryItem = {
   focus: string;
 };
 
-/** Last N quick workouts, newest first — inputs plus a title/focus for the list. */
+/** Last N quick workouts for a user, newest first — inputs plus title/focus. */
 export async function getRecentQuickWorkouts(
+  userId: string,
   limit = 5
 ): Promise<QuickWorkoutHistoryItem[]> {
   const rows = await db
     .select()
     .from(quickWorkouts)
+    .where(eq(quickWorkouts.userId, userId))
     .orderBy(desc(quickWorkouts.id))
     .limit(limit);
 

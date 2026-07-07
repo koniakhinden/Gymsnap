@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { quickWorkouts } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { getUserId } from "@/lib/user";
 import { hydrateQuickWorkout } from "@/lib/quick-workout-data";
 import type { QuickWorkout } from "@/lib/validation/quick-workout";
 
 // Returns a saved quick workout with exercise images/equipment attached,
-// so past sessions can be reopened from the Recent list.
+// so past sessions can be reopened from the Recent list. Scoped to the caller's
+// user_id — you can't open someone else's saved workout.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const userId = await getUserId();
     const { id } = await params;
     const num = Number(id);
     if (!Number.isInteger(num) || num < 1) {
@@ -21,7 +24,7 @@ export async function GET(
     const rows = await db
       .select()
       .from(quickWorkouts)
-      .where(eq(quickWorkouts.id, num))
+      .where(and(eq(quickWorkouts.id, num), eq(quickWorkouts.userId, userId)))
       .limit(1);
     if (rows.length === 0) {
       return NextResponse.json({ error: "Workout not found." }, { status: 404 });

@@ -11,6 +11,7 @@ import {
   type QuickEquipmentItem,
 } from "@/lib/validation/quick-workout";
 import { getLatestProfile, getLatestGymWithEquipment } from "@/lib/plan-data";
+import { getUserId } from "@/lib/user";
 import { getEligibleExercises, formatExerciseCompactList } from "@/lib/exercises";
 import {
   buildQuickSystemPrompt,
@@ -114,19 +115,21 @@ async function generateWithValidation(
 }
 
 export async function GET() {
-  const history = await getRecentQuickWorkouts(5);
+  const userId = await getUserId();
+  const history = await getRecentQuickWorkouts(userId, 5);
   return NextResponse.json({ history });
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getUserId();
     const body = await req.json();
     const parsed = quickWorkoutRequestSchema.parse(body);
 
     // Resolve which equipment the session may use.
     let equipmentItems: QuickEquipmentItem[] = [];
     if (parsed.equipmentMode === "saved") {
-      const gymData = await getLatestGymWithEquipment();
+      const gymData = await getLatestGymWithEquipment(userId);
       if (!gymData || gymData.items.length === 0) {
         return NextResponse.json(
           { error: "No saved gym found. Add equipment in Gym setup, or pick another option." },
@@ -148,7 +151,7 @@ export async function POST(req: NextRequest) {
     const validIds = new Set(eligible.map((e) => e.id));
     const compactList = formatExerciseCompactList(eligible);
 
-    const profile = await getLatestProfile();
+    const profile = await getLatestProfile(userId);
 
     const system = buildQuickSystemPrompt();
     const userMessage = buildQuickUserMessage({
@@ -167,6 +170,7 @@ export async function POST(req: NextRequest) {
     const [row] = await db
       .insert(quickWorkouts)
       .values({
+        userId,
         equipmentMode: parsed.equipmentMode,
         equipment: equipmentItems,
         focusChips: parsed.focusChips,

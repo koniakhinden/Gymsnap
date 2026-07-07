@@ -1,9 +1,14 @@
-import { pgTable, serial, text, integer, boolean, jsonb, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, jsonb, timestamp, real, index } from "drizzle-orm/pg-core";
 
-export const gyms = pgTable("gyms", {
-  id: serial("id").primaryKey(),
-  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
-});
+export const gyms = pgTable(
+  "gyms",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
+  },
+  (t) => [index("gyms_user_id_idx").on(t.userId)]
+);
 
 export const gymPhotos = pgTable("gym_photos", {
   id: serial("id").primaryKey(),
@@ -31,6 +36,7 @@ export const equipmentItems = pgTable("equipment_items", {
 
 export const profiles = pgTable("profiles", {
   id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
   ageGroup: text("age_group", {
     enum: ["25-34", "35-44", "45-54", "55+"],
   }).notNull(),
@@ -57,7 +63,7 @@ export const profiles = pgTable("profiles", {
   cardioElliptical: boolean("cardio_elliptical").notNull().default(false),
   cardioMinimal: boolean("cardio_minimal").notNull().default(false),
   updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true }).notNull(),
-});
+}, (t) => [index("profiles_user_id_idx").on(t.userId)]);
 
 export const exercises = pgTable("exercises", {
   id: text("id").primaryKey(),
@@ -73,11 +79,16 @@ export const exercises = pgTable("exercises", {
   images: jsonb("images").$type<string[]>().notNull().default([]),
 });
 
-export const weeks = pgTable("weeks", {
-  id: serial("id").primaryKey(),
-  weekNumber: integer("week_number").notNull(),
-  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
-});
+export const weeks = pgTable(
+  "weeks",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    weekNumber: integer("week_number").notNull(),
+    createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
+  },
+  (t) => [index("weeks_user_id_idx").on(t.userId)]
+);
 
 export const days = pgTable("days", {
   id: serial("id").primaryKey(),
@@ -139,6 +150,7 @@ export const dayCheckins = pgTable("day_checkins", {
 // so the /quick screen can list history and repeat a past session's inputs.
 export const quickWorkouts = pgTable("quick_workouts", {
   id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
   equipmentMode: text("equipment_mode", {
     enum: ["saved", "photo", "none"],
   }).notNull(),
@@ -152,5 +164,15 @@ export const quickWorkouts = pgTable("quick_workouts", {
   focusText: text("focus_text").notNull().default(""),
   timeMin: integer("time_min").notNull(),
   result: jsonb("result").notNull(),
+  createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
+}, (t) => [index("quick_workouts_user_id_idx").on(t.userId)]);
+
+// Short-lived one-time codes for merging a second device into an existing
+// anonymous account. Claiming a code re-points the claiming device's cookie at
+// the code owner's user_id, then the code is deleted.
+export const syncCodes = pgTable("sync_codes", {
+  code: text("code").primaryKey(),
+  userId: text("user_id").notNull(),
+  expiresAt: timestamp("expires_at", { mode: "string", withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
 });
