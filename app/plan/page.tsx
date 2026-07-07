@@ -40,6 +40,7 @@ export default function PlanPage() {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ images: string[]; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -56,6 +57,29 @@ export default function PlanPage() {
       setWeek(data.week);
     } finally {
       setLoadingWeek(false);
+    }
+  }
+
+  async function handleDeleteWeek() {
+    if (!week) return;
+    if (
+      !window.confirm(
+        `Delete week ${week.weekNumber}? This removes its workouts and check-in and can't be undone.`
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/weeks/${week.weekNumber}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete the week.");
+      await loadWeek(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -96,13 +120,23 @@ export default function PlanPage() {
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{week ? `Week ${week.weekNumber}` : "Your plan"}</h1>
         {week && (
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="no-print text-sm font-medium text-cyan-700 border border-cyan-200 rounded-md px-3 py-1.5"
-          >
-            Print / Save as PDF
-          </button>
+          <div className="no-print flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="text-sm font-medium text-cyan-700 border border-cyan-200 rounded-md px-3 py-1.5"
+            >
+              Print / Save as PDF
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleDeleteWeek}
+              className="text-sm font-medium text-red-600 border border-red-200 rounded-md px-3 py-1.5 disabled:opacity-40"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </button>
+          </div>
         )}
       </header>
 
