@@ -288,7 +288,10 @@ export async function entryBelongsToUser(
   return rows.length > 0;
 }
 
-export type DiaryExercise = {
+export type DiaryEntry = {
+  // Exact save instant (ISO). The client groups these by its LOCAL date so the
+  // diary day matches the user's device timezone rather than the server's UTC.
+  loggedAt: string;
   entryId: number;
   name: string;
   weekNumber: number;
@@ -296,16 +299,11 @@ export type DiaryExercise = {
   sets: SetLog[];
 };
 
-export type DiaryDay = {
-  date: string; // YYYY-MM-DD
-  exercises: DiaryExercise[];
-};
-
 /**
- * Workout diary: all logged sets for the user, grouped by the calendar date
- * they were logged (newest first), then by exercise entry.
+ * Flat diary entries — one per (exercise, save instant) — newest first.
+ * Grouping into days is done on the client, in the viewer's local timezone.
  */
-export async function getDiary(userId: string): Promise<DiaryDay[]> {
+export async function getDiaryEntries(userId: string): Promise<DiaryEntry[]> {
   const rows = await db
     .select({
       log: exerciseSetLogs,
@@ -323,26 +321,23 @@ export async function getDiary(userId: string): Promise<DiaryDay[]> {
     .where(eq(exerciseSetLogs.userId, userId))
     .orderBy(desc(exerciseSetLogs.loggedAt));
 
-  const byDate = new Map<string, Map<number, DiaryExercise>>();
+  // Group by exact instant + entry (a save writes all sets with one loggedAt).
+  const map = new Map<string, DiaryEntry>();
   for (const r of rows) {
-    const date = r.log.loggedAt.slice(0, 10);
-    let dayMap = byDate.get(date);
-    if (!dayMap) {
-      dayMap = new Map();
-      byDate.set(date, dayMap);
-    }
-    let ex = dayMap.get(r.entryId);
-    if (!ex) {
-      ex = {
+    const key = `${r.log.loggedAt}__${r.entryId}`;
+    let entry = map.get(key);
+    if (!entry) {
+      entry = {
+        loggedAt: r.log.loggedAt,
         entryId: r.entryId,
         name: r.nameOverride ?? r.exerciseName ?? "Exercise",
         weekNumber: r.weekNumber,
         dayLabel: r.dayLabel,
         sets: [],
       };
-      dayMap.set(r.entryId, ex);
+      map.set(key, entry);
     }
-    ex.sets.push({
+    entry.sets.push({
       id: r.log.id,
       setNumber: r.log.setNumber,
       weight: r.log.weight,
@@ -353,12 +348,9 @@ export async function getDiary(userId: string): Promise<DiaryDay[]> {
     });
   }
 
-  return [...byDate.entries()].map(([date, dayMap]) => ({
-    date,
-    exercises: [...dayMap.values()].map((ex) => ({
-      ...ex,
-      sets: ex.sets.sort((a, b) => a.setNumber - b.setNumber),
-    })),
+  return [...map.values()].map((e) => ({
+    ...e,
+    sets: e.sets.sort((a, b) => a.setNumber - b.setNumber),
   }));
 }
 

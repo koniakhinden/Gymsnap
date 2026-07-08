@@ -3,8 +3,14 @@ import { db } from "@/lib/db";
 import { exerciseSetLogs } from "@/lib/db/schema";
 import { logSaveSchema } from "@/lib/validation/set-log";
 import { getUserId } from "@/lib/user";
-import { entryBelongsToUser } from "@/lib/plan-data";
+import { entryBelongsToUser, getDiaryEntries } from "@/lib/plan-data";
 import { and, eq } from "drizzle-orm";
+
+export async function GET() {
+  const userId = await getUserId();
+  const entries = await getDiaryEntries(userId);
+  return NextResponse.json({ entries });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +33,9 @@ export async function POST(req: NextRequest) {
         )
       );
 
-    const now = new Date().toISOString();
+    // Prefer the client's timestamp so the log's day reflects the user's local
+    // timezone, not the server's UTC. Fall back to server time if not sent.
+    const now = parsed.loggedAt ?? new Date().toISOString();
     if (parsed.sets.length > 0) {
       await db.insert(exerciseSetLogs).values(
         parsed.sets.map((s) => ({

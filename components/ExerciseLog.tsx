@@ -98,6 +98,7 @@ export default function ExerciseLog({
         body: JSON.stringify({
           entryId,
           weightUnit,
+          loggedAt: new Date().toISOString(),
           sets: sets.map((s, i) => ({
             setNumber: i + 1,
             weight: s.weight > 0 ? s.weight : null,
