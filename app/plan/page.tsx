@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Printer, Trash2 } from "lucide-react";
+import { Printer, FileText, Trash2 } from "lucide-react";
 import ImageLightbox from "@/components/ImageLightbox";
 import DayCard from "@/components/DayCard";
 import type { FullWeek } from "@/lib/plan-data";
-import { Button, Card, Skeleton, SegmentControl } from "@/components/ui";
+import { Button, Card, Skeleton } from "@/components/ui";
 
 type ExportMode = "illustrated" | "compact";
 
@@ -28,17 +28,23 @@ export default function PlanPage() {
   const [lightbox, setLightbox] = useState<{ images: string[]; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>("illustrated");
-  const [preparingPrint, setPreparingPrint] = useState(false);
+  const [preparingMode, setPreparingMode] = useState<ExportMode | null>(null);
   // Accordion: at most one day is in "fill workout" (log) mode at a time.
   const [openDayId, setOpenDayId] = useState<number | null>(null);
 
-  // Print only after every exercise preview has actually decoded — otherwise the
-  // browser prints before the (remote) images finish loading and they come out
-  // blank. In compact mode there are no images to wait for.
-  async function handlePrint() {
-    if (exportMode === "illustrated") {
-      setPreparingPrint(true);
-      try {
+  // One-tap export: pick a style and print immediately. We flip exportMode (which
+  // drives the `export-<mode>` class on <main>), wait for React to paint that
+  // class, and — for the illustrated style — wait for every preview to decode so
+  // the browser doesn't print before the remote images load and leave them blank.
+  async function handleExport(mode: ExportMode) {
+    setExportMode(mode);
+    setPreparingMode(mode);
+    try {
+      // Let the export-<mode> class apply before we measure/print.
+      await new Promise<void>((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => r()))
+      );
+      if (mode === "illustrated") {
         const imgs = Array.from(
           document.querySelectorAll<HTMLImageElement>(".exercise-thumb img")
         );
@@ -49,9 +55,9 @@ export default function PlanPage() {
             })
           )
         );
-      } finally {
-        setPreparingPrint(false);
       }
+    } finally {
+      setPreparingMode(null);
     }
     window.print();
   }
@@ -151,15 +157,6 @@ export default function PlanPage() {
           <div className="no-print flex items-center gap-2">
             <Button
               variant="secondary"
-              loading={preparingPrint}
-              onClick={handlePrint}
-              className="!min-h-[44px] !px-3.5 !text-sm"
-            >
-              {!preparingPrint && <Printer size={16} strokeWidth={2} />}
-              {preparingPrint ? "Preparing..." : "Print / Save as PDF"}
-            </Button>
-            <Button
-              variant="secondary"
               loading={deleting}
               onClick={handleDeleteWeek}
               className="!min-h-[44px] !px-3.5 !text-sm !text-error hover:!border-error/40"
@@ -170,21 +167,6 @@ export default function PlanPage() {
           </div>
         )}
       </header>
-
-      {week && (
-        <div className="no-print flex items-center gap-2 text-sm">
-          <span className="text-ink-tertiary">PDF style:</span>
-          <SegmentControl<ExportMode>
-            className="flex-1 max-w-xs"
-            value={exportMode}
-            onChange={setExportMode}
-            options={[
-              { value: "illustrated", label: "With images" },
-              { value: "compact", label: "Compact (text)" },
-            ]}
-          />
-        </div>
-      )}
 
       {error && (
         <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">
@@ -241,6 +223,34 @@ export default function PlanPage() {
               onImageClick={(images, title) => setLightbox({ images, title })}
             />
           ))}
+        </div>
+      )}
+
+      {week && (
+        <div className="no-print flex flex-col gap-1.5">
+          <span className="text-xs text-ink-tertiary">Save this week as PDF</span>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              block
+              loading={preparingMode === "illustrated"}
+              onClick={() => handleExport("illustrated")}
+              className="!text-sm"
+            >
+              {preparingMode !== "illustrated" && <Printer size={16} strokeWidth={2} />}
+              With images
+            </Button>
+            <Button
+              variant="secondary"
+              block
+              loading={preparingMode === "compact"}
+              onClick={() => handleExport("compact")}
+              className="!text-sm"
+            >
+              {preparingMode !== "compact" && <FileText size={16} strokeWidth={2} />}
+              Text only
+            </Button>
+          </div>
         </div>
       )}
 

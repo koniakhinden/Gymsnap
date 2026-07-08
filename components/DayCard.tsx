@@ -143,14 +143,20 @@ export default function DayCard({
                 </button>
               )}
               <div className="flex-1 text-sm">
-                <p className="flex flex-wrap items-center gap-1.5 font-medium">
-                  {name}
-                  {equipmentLabel && <Badge tone="beta">{equipmentLabel}</Badge>}
-                  {ex.unverified && <Badge tone="warning">Unverified</Badge>}
-                  {!isOpen && isLogged && (
-                    <CheckCircle2 size={15} strokeWidth={2.5} className="text-success" />
+                <div className="flex items-start justify-between gap-2">
+                  <p className="flex flex-wrap items-center gap-1.5 font-medium">
+                    {name}
+                    {ex.unverified && <Badge tone="warning">Unverified</Badge>}
+                    {!isOpen && isLogged && (
+                      <CheckCircle2 size={15} strokeWidth={2.5} className="text-success" />
+                    )}
+                  </p>
+                  {equipmentLabel && (
+                    <Badge tone="beta" className="shrink-0">
+                      {equipmentLabel}
+                    </Badge>
                   )}
-                </p>
+                </div>
                 <p className="text-ink-secondary">
                   {ex.sets} sets x {ex.reps} · {ex.weight || "bodyweight"} · rest {ex.restSec}s
                 </p>
