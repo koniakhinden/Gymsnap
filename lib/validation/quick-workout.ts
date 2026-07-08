@@ -23,12 +23,26 @@ export const quickBlockSchema = z.object({
   harderOption: z.string().default(""),
 });
 
+// What kind of session the user wants right now.
+//  - strength: resistance work (the original behaviour, kept as default)
+//  - cardio:   conditioning only (steady state or intervals), no lifting
+//  - mixed:    a short strength block plus a cardio finisher
+export const sessionTypeEnum = z.enum(["strength", "cardio", "mixed"]);
+export type SessionType = z.infer<typeof sessionTypeEnum>;
+
 export const quickWorkoutSchema = z.object({
   title: z.string().min(1),
   focus: z.string().min(1),
+  // Echoed back by the model so history can re-run the same kind of session.
+  // Optional + default keeps older stored workouts (no field) valid.
+  sessionType: sessionTypeEnum.default("strength"),
   totalMin: z.number().int().min(1).max(120),
   warmup: z.array(quickSegmentSchema),
-  blocks: z.array(quickBlockSchema).min(1),
+  // Cardio-only sessions describe their work in the cardio segments below, so
+  // blocks may be empty; strength/mixed sessions still need at least one block.
+  blocks: z.array(quickBlockSchema),
+  // Cardio pieces: intervals or steady-state efforts (empty for pure strength).
+  cardio: z.array(quickSegmentSchema).default([]),
   cooldown: z.array(quickSegmentSchema),
   cautions: z.array(z.string()).default([]),
 });
@@ -59,6 +73,8 @@ export const quickWorkoutRequestSchema = z.object({
   // Only used when equipmentMode === "photo"; ignored for "saved" (loaded from
   // the DB) and "none" (bodyweight only).
   equipmentItems: z.array(quickEquipmentItemSchema).default([]),
+  // Strength (default), cardio-only, or a mixed session.
+  sessionType: sessionTypeEnum.default("strength"),
   focusChips: z.array(z.string()).default([]),
   focusText: z.string().default(""),
   timeMin: quickTimeEnum,

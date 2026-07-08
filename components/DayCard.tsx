@@ -202,8 +202,9 @@ export default function DayCard({
       </p>
 
       {/* Fill / read-only switch. In fill mode the Done bar is sticky so it stays
-          reachable while scrolling a long day. */}
-      {!isOpen ? (
+          reachable while scrolling a long day. A cardio-only day has no exercise
+          entries to log, so we skip the logging control entirely there. */}
+      {total === 0 ? null : !isOpen ? (
         <Button
           block
           className="no-print mt-3"

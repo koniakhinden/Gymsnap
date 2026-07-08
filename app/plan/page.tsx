@@ -83,13 +83,26 @@ export default function PlanPage() {
 
   async function handleDeleteWeek() {
     if (!week) return;
-    if (
-      !window.confirm(
-        `Delete week ${week.weekNumber}? This removes its exercise suggestions and check-in and can't be undone.`
-      )
-    ) {
-      return;
+
+    // Count real workout data so the warning is honest about what's lost.
+    const loggedSets = week.days.reduce(
+      (sum, d) => sum + d.exercises.reduce((s, e) => s + e.logs.length, 0),
+      0
+    );
+
+    const baseMsg = `Delete week ${week.weekNumber}? This removes its exercise suggestions and check-in and can't be undone.`;
+    if (!window.confirm(baseMsg)) return;
+
+    // Second, stronger gate when the week holds logged workouts — these are the
+    // sets you actually recorded at the gym, so never delete them on one tap.
+    if (loggedSets > 0) {
+      const confirmText = "delete";
+      const typed = window.prompt(
+        `This week has ${loggedSets} logged set${loggedSets === 1 ? "" : "s"} from workouts you actually did. Deleting is permanent.\n\nType "${confirmText}" to confirm.`
+      );
+      if (typed?.trim().toLowerCase() !== confirmText) return;
     }
+
     setDeleting(true);
     setError(null);
     try {

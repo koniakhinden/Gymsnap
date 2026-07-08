@@ -10,27 +10,36 @@ import {
   Card,
   Field,
   Textarea,
-  SegmentControl,
   Slider,
   Skeleton,
   SkeletonCardRow,
 } from "@/components/ui";
+import { cn } from "@/components/ui/cn";
 
 type DayStatus = "completed" | "partial" | "skipped";
 
-const STATUS_OPTIONS = (["completed", "partial", "skipped"] as DayStatus[]).map(
-  (s) => ({ value: s, label: <span className="capitalize">{s}</span> }),
-);
+// Per-status labels and the colour used when that status is selected.
+const STATUS_META: Record<DayStatus, { label: string; on: string }> = {
+  completed: { label: "Completed", on: "bg-success-bg text-success" },
+  partial: { label: "Partial", on: "bg-warning-bg text-warning-ink" },
+  skipped: { label: "Skipped", on: "bg-error-bg text-error" },
+};
+const STATUS_ORDER: DayStatus[] = ["completed", "partial", "skipped"];
 
 /**
  * Default a day's status from what the user actually logged:
- * some exercises logged → "partial", all logged → "completed",
- * nothing logged → "completed" (the prior default, user can still change it).
+ *   all exercises logged → "completed"
+ *   some logged          → "partial"
+ *   none logged          → "skipped" (don't pretend an untouched day was done)
+ * A day with nothing to log (e.g. a cardio-only day) defaults to "completed"
+ * since we can't infer it from set logs; the user can still change any of these.
  */
 function deriveStatusFromLogs(d: FullWeek["days"][number]): DayStatus {
   const total = d.exercises.length;
+  if (total === 0) return "completed";
   const logged = d.exercises.filter((e) => e.logs.length > 0).length;
-  if (total > 0 && logged > 0 && logged < total) return "partial";
+  if (logged === 0) return "skipped";
+  if (logged < total) return "partial";
   return "completed";
 }
 
@@ -160,8 +169,7 @@ export default function CheckinPage() {
               <p className="mb-2 text-sm font-medium">
                 {d.dayLabel} — {d.focus}
               </p>
-              <SegmentControl<DayStatus>
-                options={STATUS_OPTIONS}
+              <StatusControl
                 value={statuses[d.id] ?? "completed"}
                 onChange={(s) => setStatuses((prev) => ({ ...prev, [d.id]: s }))}
               />
@@ -230,6 +238,43 @@ export default function CheckinPage() {
         </Button>
       )}
     </main>
+  );
+}
+
+// Completed / Partial / Skipped selector. Same sunken-track look as the shared
+// SegmentControl, but the active segment is colour-coded (green / amber / red)
+// so the week's outcome reads at a glance.
+function StatusControl({
+  value,
+  onChange,
+}: {
+  value: DayStatus;
+  onChange: (value: DayStatus) => void;
+}) {
+  return (
+    <div role="tablist" className="flex gap-1 rounded-card bg-surface-sunken p-1">
+      {STATUS_ORDER.map((status) => {
+        const on = status === value;
+        return (
+          <button
+            key={status}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => onChange(status)}
+            className={cn(
+              "flex-1 rounded-lg px-0 py-[9px] text-center text-sm transition-all outline-none",
+              "focus-visible:ring-[3px] focus-visible:ring-accent-border/40",
+              on
+                ? cn("font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08)]", STATUS_META[status].on)
+                : "font-medium text-ink-secondary",
+            )}
+          >
+            {STATUS_META[status].label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

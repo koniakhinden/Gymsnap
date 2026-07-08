@@ -38,6 +38,25 @@ const FOCUS_CHIPS = [
   "Mobility / stretching",
 ];
 
+// Cardio sessions pick a style rather than a muscle group.
+const CARDIO_CHIPS = [
+  "Steady state (zone 2)",
+  "Intervals / HIIT",
+  "Low impact",
+  "Fat burn",
+  "Endurance",
+];
+
+const SESSION_TYPES: { value: "strength" | "cardio" | "mixed"; label: string }[] = [
+  { value: "strength", label: "Strength" },
+  { value: "cardio", label: "Cardio" },
+  { value: "mixed", label: "Mixed" },
+];
+
+function chipsForSessionType(t: "strength" | "cardio" | "mixed"): string[] {
+  return t === "cardio" ? CARDIO_CHIPS : FOCUS_CHIPS;
+}
+
 const TIME_OPTIONS: { value: 10 | 20 | 30 | 45; label: string }[] = [
   { value: 10, label: "10 min" },
   { value: 20, label: "20 min" },
@@ -65,12 +84,15 @@ type Block = {
   exercise: { id: string; name: string; images: string[]; equipment: string | null } | null;
 };
 type Segment = { name: string; howTo: string; durationOrReps: string };
+type SessionType = "strength" | "cardio" | "mixed";
 type Workout = {
   title: string;
   focus: string;
+  sessionType?: SessionType;
   totalMin: number;
   warmup: Segment[];
   blocks: Block[];
+  cardio?: Segment[];
   cooldown: Segment[];
   cautions: string[];
 };
@@ -80,6 +102,7 @@ type HistoryItem = {
   createdAt: string;
   equipmentMode: EquipmentMode;
   equipment: EquipmentItem[];
+  sessionType?: SessionType;
   focusChips: string[];
   focusText: string;
   timeMin: number;
@@ -133,6 +156,7 @@ export default function QuickWorkoutPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // ---- focus step ----
+  const [sessionType, setSessionType] = useState<SessionType>("strength");
   const [selectedChips, setSelectedChips] = useState<string[]>([]);
   const [focusText, setFocusText] = useState("");
 
@@ -269,6 +293,14 @@ export default function QuickWorkoutPage() {
     );
   }
 
+  // Strength and cardio offer different chips, so drop any that no longer apply
+  // when the user switches session type.
+  function changeSessionType(next: SessionType) {
+    setSessionType(next);
+    const allowed = new Set(chipsForSessionType(next));
+    setSelectedChips((prev) => prev.filter((c) => allowed.has(c)));
+  }
+
   async function handleBuild() {
     setError(null);
     // photo mode requires a confirmed list
@@ -284,6 +316,7 @@ export default function QuickWorkoutPage() {
         body: JSON.stringify({
           equipmentMode: mode,
           equipmentItems,
+          sessionType,
           focusChips: selectedChips,
           focusText,
           timeMin,
@@ -324,6 +357,7 @@ export default function QuickWorkoutPage() {
       setRecognized(item.equipment);
       setPhotos([]);
     }
+    setSessionType(item.sessionType ?? "strength");
     setSelectedChips(item.focusChips);
     setFocusText(item.focusText);
     setTimeMin(item.timeMin as 10 | 20 | 30 | 45);
@@ -448,6 +482,10 @@ export default function QuickWorkoutPage() {
             );
           })}
         </section>
+
+        {workout.cardio && workout.cardio.length > 0 && (
+          <SegmentCard title="Cardio" segments={workout.cardio} />
+        )}
 
         {workout.cooldown.length > 0 && (
           <SegmentCard title="Cooldown" segments={workout.cooldown} />
@@ -620,8 +658,13 @@ export default function QuickWorkoutPage() {
       {/* STEP 2 — focus */}
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">2 · What do you want to train?</h2>
+        <SegmentControl
+          options={SESSION_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+          value={sessionType}
+          onChange={(v) => changeSessionType(v as SessionType)}
+        />
         <PillGroup>
-          {FOCUS_CHIPS.map((chip) => (
+          {chipsForSessionType(sessionType).map((chip) => (
             <Pill
               key={chip}
               selected={selectedChips.includes(chip)}
@@ -634,7 +677,11 @@ export default function QuickWorkoutPage() {
         <Textarea
           value={focusText}
           onChange={(e) => setFocusText(e.target.value)}
-          placeholder="…or describe it (e.g. “ankle after a sprain”, “stiff neck from sitting”, “legs but easy on the knees”)"
+          placeholder={
+            sessionType === "cardio"
+              ? "…or describe it (e.g. “easy 20 min, knees are cranky”, “treadmill intervals”)"
+              : "…or describe it (e.g. “ankle after a sprain”, “stiff neck from sitting”, “legs but easy on the knees”)"
+          }
           rows={2}
         />
       </section>

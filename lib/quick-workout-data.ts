@@ -58,6 +58,7 @@ export type QuickWorkoutHistoryItem = {
   createdAt: string;
   equipmentMode: "saved" | "photo" | "none";
   equipment: { name: string; category: string }[];
+  sessionType: QuickWorkout["sessionType"];
   focusChips: string[];
   focusText: string;
   timeMin: number;
@@ -84,6 +85,7 @@ export async function getRecentQuickWorkouts(
       createdAt: row.createdAt,
       equipmentMode: row.equipmentMode,
       equipment: row.equipment,
+      sessionType: result?.sessionType ?? "strength",
       focusChips: row.focusChips,
       focusText: row.focusText,
       timeMin: row.timeMin,

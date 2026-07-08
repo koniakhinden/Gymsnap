@@ -1,8 +1,19 @@
 import type { profiles } from "./db/schema";
 import { buildProfileSummary } from "./plan-prompt";
-import type { QuickEquipmentItem } from "./validation/quick-workout";
+import type { QuickEquipmentItem, SessionType } from "./validation/quick-workout";
 
 type Profile = typeof profiles.$inferSelect;
+
+// Per-session-type guidance appended to the user message so the model knows how
+// to shape blocks vs. the cardio segments.
+const SESSION_TYPE_HINT: Record<SessionType, string> = {
+  strength:
+    "SESSION TYPE: STRENGTH. Fill \"blocks\" with resistance exercises as usual. Leave \"cardio\" empty ([]).",
+  cardio:
+    "SESSION TYPE: CARDIO ONLY. Do NOT program any resistance/strength lifts — leave \"blocks\" empty ([]). Put the whole session in \"cardio\" as one or more segments: a steady-state effort, or work/rest intervals. For each segment use durationOrReps for the time/interval structure (e.g. \"20 min steady, RPE 6\" or \"6 rounds: 60s hard / 90s easy\") and howTo for pacing/intensity cues (heart-rate zone or RPE, and the machine/modality). Respect the available equipment: if a treadmill/bike/rower/elliptical is available use it, otherwise use low-impact bodyweight cardio (marching, step-ups, shadow boxing) that fits any injuries. Still include a warmup (easy ramp-up) and cooldown (easy pace + light stretch).",
+  mixed:
+    "SESSION TYPE: MIXED. Program a SHORT strength portion in \"blocks\" (about 2-4 compound movements) that fits within roughly the first 60-70% of the time, then add a cardio finisher in \"cardio\" (one or two segments, intervals or steady) for the remaining time. Include warmup and cooldown.",
+};
 
 const FOCUS_TARGET_HINT: Record<number, string> = {
   10: "3-4 exercises, a short warmup and a 1-2 move cooldown",
@@ -39,6 +50,7 @@ export function buildQuickUserMessage({
   chips,
   text,
   timeMin,
+  sessionType,
   profile,
   compactList,
 }: {
@@ -47,6 +59,7 @@ export function buildQuickUserMessage({
   chips: string[];
   text: string;
   timeMin: number;
+  sessionType: SessionType;
   profile: Profile | undefined;
   compactList: string;
 }): string {
@@ -54,11 +67,16 @@ export function buildQuickUserMessage({
     ? buildProfileSummary(profile)
     : "No saved profile — assume a healthy adult of unknown experience level. Because you don't know their level, give every main exercise a genuinely easier and harder option.";
 
-  const sizeHint = FOCUS_TARGET_HINT[timeMin] ?? FOCUS_TARGET_HINT[30];
+  const sizeHint =
+    sessionType === "cardio"
+      ? "one continuous cardio effort or a set of intervals — no strength blocks"
+      : (FOCUS_TARGET_HINT[timeMin] ?? FOCUS_TARGET_HINT[30]);
 
   return `Build ONE single training session the user can do right now.
 
-TIME AVAILABLE: ${timeMin} minutes. Aim for roughly ${sizeHint}. The sum of warmup + all working blocks (sets x reps x rest) + cooldown must realistically fit ${timeMin} minutes.
+${SESSION_TYPE_HINT[sessionType]}
+
+TIME AVAILABLE: ${timeMin} minutes. Aim for roughly ${sizeHint}. The sum of warmup + all working blocks (sets x reps x rest) + cardio segments + cooldown must realistically fit ${timeMin} minutes.
 
 WHAT THEY WANT TO TRAIN:
 ${buildQuickGoalSummary(chips, text)}
@@ -85,7 +103,8 @@ Hard rules you must always follow:
    - Shoulder issues: avoid unsupported overhead pressing and behind-the-neck movements.
    - Honor anything in the free-text injury notes.
 5. ACUTE PAIN / FRESH INJURY: if the request describes something acute ("twisted my ankle yesterday", "sudden sharp pain", "tweaked my back this morning"), do NOT program any loading or stretching of that area. Instead: (a) add a gentle, plain-language note in "cautions" recommending they see a doctor/physio if pain is sharp, persistent, or worsening, and (b) if it's safe, build a session that trains OTHER, unaffected areas only. State clearly in "cautions" that you avoided the injured area. When in doubt, keep it conservative.
-6. Match the number of exercises to the time available (about 3-4 for 10 min, 6-8 for 45 min) and always include a short warmup and cooldown appropriate to the focus.
+6. Match the session to the time available and always include a short warmup and cooldown appropriate to the focus. For a STRENGTH session that's about 3-4 exercises for 10 min up to 6-8 for 45 min. For a CARDIO-only session leave "blocks" empty and put the work in "cardio" segments. For a MIXED session use a short "blocks" list plus a "cardio" finisher.
 7. "whyIncluded" should be one short sentence tying the exercise to the user's stated goal or limitations.
-8. Respond only by calling the report_quick_workout tool — no prose.`;
+8. Echo the requested session type back in the "sessionType" field ("strength", "cardio", or "mixed") exactly as given in the user message.
+9. Respond only by calling the report_quick_workout tool — no prose.`;
 }

@@ -160,11 +160,15 @@ export async function POST(req: NextRequest) {
       chips: parsed.focusChips,
       text: parsed.focusText,
       timeMin: parsed.timeMin,
+      sessionType: parsed.sessionType,
       profile,
       compactList,
     });
 
     const workout = await generateWithValidation(system, userMessage, validIds);
+    // Trust the requested type over whatever the model echoed, so history and UI
+    // labels always match what the user actually asked for.
+    workout.sessionType = parsed.sessionType;
 
     const now = new Date().toISOString();
     const [row] = await db
