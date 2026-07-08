@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { cn } from "./cn";
 
 /*
- * Stepper — −/+ number control for fast on-phone entry. Default tap targets are
+ * Stepper — −/+ number control with an editable field in the middle, so values
+ * can be typed on the keyboard as well as stepped. Default tap targets are
  * 44px; `compact` shrinks to 40px so two steppers fit on one row when logging.
  */
 export function Stepper({
@@ -31,9 +33,30 @@ export function Stepper({
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   // Avoid floating-point drift on fractional steps (e.g. 2.5 kg).
   const round = (v: number) => Math.round(v * 100) / 100;
+  const isDecimal = step % 1 !== 0;
+
+  // Local text state lets the user type intermediate values ("", "2.") without
+  // the parent clamping mid-keystroke; we reconcile on blur. While focused we
+  // don't resync from `value`, so a half-typed decimal isn't clobbered.
+  const [text, setText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setText(String(value));
+  }, [value, focused]);
+
+  function commit(raw: string) {
+    const n = parseFloat(raw.replace(",", "."));
+    if (Number.isNaN(n)) {
+      setText(String(value));
+      return;
+    }
+    const next = clamp(round(n));
+    setText(String(next));
+    if (next !== value) onChange(next);
+  }
 
   const btn = compact ? "h-10 w-9" : "h-11 w-11";
-  const valueBox = compact ? "min-w-[40px] text-[14px]" : "min-w-[72px] text-[15px]";
+  const inputW = compact ? "w-9" : "w-14";
 
   return (
     <div
@@ -54,17 +77,38 @@ export function Stepper({
       >
         <Minus size={compact ? 16 : 18} strokeWidth={2.5} />
       </button>
-      <div
-        className={cn(
-          "select-none px-1 text-center font-semibold tabular-nums text-ink",
-          valueBox,
-        )}
-      >
-        {value}
+
+      <div className="flex items-center justify-center px-0.5">
+        <input
+          type="text"
+          inputMode={isDecimal ? "decimal" : "numeric"}
+          aria-label={ariaLabel}
+          disabled={disabled}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            const n = parseFloat(e.target.value.replace(",", "."));
+            if (!Number.isNaN(n)) onChange(clamp(round(n)));
+          }}
+          onFocus={(e) => {
+            setFocused(true);
+            e.currentTarget.select();
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            commit(e.target.value);
+          }}
+          className={cn(
+            "bg-transparent text-center font-semibold tabular-nums text-ink outline-none disabled:cursor-not-allowed",
+            compact ? "text-[14px]" : "text-[15px]",
+            inputW,
+          )}
+        />
         {suffix ? (
-          <span className="ml-0.5 text-[12px] font-medium text-ink-tertiary">{suffix}</span>
+          <span className="text-[12px] font-medium text-ink-tertiary">{suffix}</span>
         ) : null}
       </div>
+
       <button
         type="button"
         aria-label={ariaLabel ? `Increase ${ariaLabel}` : "Increase"}

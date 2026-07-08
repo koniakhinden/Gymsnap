@@ -22,6 +22,18 @@ const STATUS_OPTIONS = (["completed", "partial", "skipped"] as DayStatus[]).map(
   (s) => ({ value: s, label: <span className="capitalize">{s}</span> }),
 );
 
+/**
+ * Default a day's status from what the user actually logged:
+ * some exercises logged → "partial", all logged → "completed",
+ * nothing logged → "completed" (the prior default, user can still change it).
+ */
+function deriveStatusFromLogs(d: FullWeek["days"][number]): DayStatus {
+  const total = d.exercises.length;
+  const logged = d.exercises.filter((e) => e.logs.length > 0).length;
+  if (total > 0 && logged > 0 && logged < total) return "partial";
+  return "completed";
+}
+
 export default function CheckinPage() {
   const router = useRouter();
   const [week, setWeek] = useState<FullWeek | null | undefined>(undefined);
@@ -43,7 +55,10 @@ export default function CheckinPage() {
         if (data.week) {
           const initial: Record<number, DayStatus> = {};
           for (const d of data.week.days) {
-            initial[d.id] = (d.checkinStatus as DayStatus) ?? "completed";
+            // Saved status wins; otherwise derive from what was logged:
+            // any exercise logged → at least "partial", all logged → "completed".
+            initial[d.id] =
+              (d.checkinStatus as DayStatus) ?? deriveStatusFromLogs(d);
           }
           setStatuses(initial);
           if (data.week.checkin) {
