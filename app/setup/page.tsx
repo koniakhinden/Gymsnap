@@ -215,7 +215,7 @@ export default function SetupPage() {
         <p className="mt-1 text-sm text-ink-secondary">
           Add up to 10 photos. One photo can cover several machines at once —
           wide shots of a whole corner or wall work great. GymSnap will identify
-          the equipment for your weekly plan.
+          the equipment for your exercise suggestions.
         </p>
       </header>
 

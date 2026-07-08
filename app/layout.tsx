@@ -10,9 +10,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "GymSnap",
+  title: "GymSnap — Equipment Exercise Finder",
   description:
-    "Equipment-based exercise library: photograph your gym and get exercise suggestions for the equipment you have.",
+    "Equipment-based exercise library: photograph your gym and discover exercises you can do with the equipment you have.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/icon-192.png",

@@ -74,6 +74,12 @@ export default function LegalPage() {
               recommendation.
             </li>
           </ul>
+          <h3>No professional relationship</h3>
+          <p>
+            Using this website does not create a coach-client, trainer-client,
+            therapist-client, or healthcare professional relationship of any
+            kind between you and GymSnap or its creator.
+          </p>
           <h3>Eligibility</h3>
           <p>You must be at least 18 years old to use the Service.</p>
           <h3>Beta status</h3>

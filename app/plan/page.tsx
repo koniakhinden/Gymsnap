@@ -10,7 +10,7 @@ import { Button, Card, Badge, Skeleton } from "@/components/ui";
 
 const PROGRESS_MESSAGES = [
   "Reviewing your profile and equipment...",
-  "Checking your training history...",
+  "Checking your past weeks...",
   "Balancing volume and recovery...",
   "Writing up your week...",
 ];
@@ -69,7 +69,7 @@ export default function PlanPage() {
     if (!week) return;
     if (
       !window.confirm(
-        `Delete week ${week.weekNumber}? This removes its workouts and check-in and can't be undone.`
+        `Delete week ${week.weekNumber}? This removes its exercise suggestions and check-in and can't be undone.`
       )
     ) {
       return;
@@ -99,7 +99,7 @@ export default function PlanPage() {
     try {
       const res = await fetch("/api/plan/generate", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate plan.");
+      if (!res.ok) throw new Error(data.error || "Failed to build suggestions.");
       if (data.hasUnverified) {
         setWarning(
           "Some exercises couldn't be matched to the library and were marked unverified — please review them below."
@@ -129,12 +129,14 @@ export default function PlanPage() {
     );
   }
 
-  const nextWeekLabel = week ? `Generate week ${week.weekNumber + 1}` : "Generate week 1";
+  const nextWeekLabel = week
+    ? `Suggest exercises for week ${week.weekNumber + 1}`
+    : "Suggest exercises for week 1";
 
   return (
     <main className="flex flex-col gap-4 p-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">{week ? `Week ${week.weekNumber}` : "Your plan"}</h1>
+        <h1 className="text-xl font-bold">{week ? `Week ${week.weekNumber}` : "Your weekly suggestions"}</h1>
         {week && (
           <div className="no-print flex items-center gap-2">
             <Button
@@ -171,7 +173,7 @@ export default function PlanPage() {
 
       {!week && (
         <Card className="p-4 text-sm text-ink-secondary">
-          No plan yet. Make sure your{" "}
+          No suggestions yet. Make sure your{" "}
           <Link href="/setup" className="text-accent underline hover:text-accent-hover">
             gym setup
           </Link>{" "}

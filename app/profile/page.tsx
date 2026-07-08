@@ -140,7 +140,7 @@ export default function ProfilePage() {
       <header>
         <h1 className="text-xl font-bold">Your profile</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          Used to tailor your weekly plan — nothing here is shared or stored remotely.
+          Used only to filter and adjust exercise suggestions.
         </p>
       </header>
 

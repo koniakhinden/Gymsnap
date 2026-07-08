@@ -131,7 +131,7 @@ export default function CheckinPage() {
       <main className="flex flex-col gap-3 p-4">
         <h1 className="text-xl font-bold">No week to check in on yet</h1>
         <Link href="/plan" className={buttonClass({ block: true, size: "lg" })}>
-          Go generate a plan
+          Get exercise suggestions
         </Link>
       </main>
     );
@@ -226,7 +226,7 @@ export default function CheckinPage() {
 
       {saved && (
         <Button size="lg" block loading={generating} onClick={handleGenerateNext}>
-          {generating ? "Generating..." : `Generate next week (week ${week.weekNumber + 1})`}
+          {generating ? "Generating..." : `Suggest exercises for week ${week.weekNumber + 1}`}
         </Button>
       )}
     </main>

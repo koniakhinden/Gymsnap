@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { Modal, Button } from "@/components/ui";
 
-const STORAGE_KEY = "gymsnap_disclaimer_accepted_v2";
+const STORAGE_KEY = "gymsnap_disclaimer_accepted_v3";
 
 /**
  * Blocking first-visit disclaimer. The app is unusable until the visitor
@@ -94,6 +94,11 @@ export default function DisclaimerGate() {
           maximum extent permitted by applicable law, GymSnap and its creator
           disclaim all liability for any injury, loss, or damage of any kind
           arising from or related to your use of this service.
+        </p>
+        <p>
+          <strong className="text-ink">No professional relationship.</strong>{" "}
+          Using this website does not create a coach-client, trainer-client,
+          therapist-client, or healthcare professional relationship.
         </p>
         <p>
           <strong className="text-ink">Age.</strong> You must be 18 years or

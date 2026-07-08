@@ -30,10 +30,26 @@ export default async function DashboardPage() {
       <header>
         <h1 className="text-2xl font-bold tracking-[-0.02em]">GymSnap</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          Exercise suggestions for the equipment you actually have — from a
-          photo of your gym.
+          Equipment exercise finder — discover exercises for the equipment you
+          actually have, from a photo of your gym.
         </p>
       </header>
+
+      <section className="rounded-card border border-border bg-surface p-3 text-xs leading-relaxed text-ink-secondary">
+        <p>
+          GymSnap was built as my personal exercise library to quickly find
+          exercises based on the equipment available in a gym, for my own
+          convenience.
+        </p>
+        <p className="mt-2">
+          The exercises shown are informational suggestions only. They are not
+          personalized training programs, coaching, medical advice, or
+          professional fitness recommendations. The service does not evaluate
+          your health, injuries, fitness level, mobility, or medical
+          conditions — you are solely responsible for deciding whether any
+          exercise is appropriate for you.
+        </p>
+      </section>
 
       <div className="flex flex-col gap-3">
         <StatusCard
@@ -97,7 +113,7 @@ export default async function DashboardPage() {
                 href="/plan"
                 className={buttonClass({ block: true, className: "flex-1" })}
               >
-                View plan
+                View suggestions
               </Link>
               <Link
                 href="/checkin"
@@ -114,13 +130,13 @@ export default async function DashboardPage() {
         ) : (
           <>
             <p className="mb-3 text-sm text-ink-secondary">
-              No plan yet.{" "}
+              No suggestions yet.{" "}
               {!gymDone || !profileDone
                 ? "Finish setup and your profile first."
                 : ""}
             </p>
             <Link href="/plan" className={buttonClass({ block: true })}>
-              Generate week 1
+              Suggest exercises for week 1
             </Link>
           </>
         )}

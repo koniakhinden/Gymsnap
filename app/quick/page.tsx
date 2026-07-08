@@ -290,7 +290,7 @@ export default function QuickWorkoutPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to build workout.");
+      if (!res.ok) throw new Error(data.error || "Failed to build suggestions.");
       setWorkout(data.workout);
       setExpanded({});
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -454,7 +454,7 @@ export default function QuickWorkoutPage() {
         )}
 
         <Button block size="lg" onClick={resetForNew}>
-          New quick workout
+          New quick session
         </Button>
 
         {lightbox && (
@@ -474,7 +474,7 @@ export default function QuickWorkoutPage() {
       <header>
         <h1 className="text-xl font-bold">Train now</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          Get one session for right now, built from whatever you have on hand.
+          Exercise ideas for right now, based on whatever you have on hand.
         </p>
       </header>
 
@@ -653,7 +653,7 @@ export default function QuickWorkoutPage() {
       </section>
 
       <Button block size="lg" disabled={buildDisabled} loading={building} onClick={handleBuild}>
-        {building ? "Building…" : "Build my workout"}
+        {building ? "Building…" : "Suggest exercises"}
       </Button>
 
       {mode === "photo" && recognized === null && (

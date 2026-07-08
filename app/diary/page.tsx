@@ -82,7 +82,7 @@ export default function DiaryPage() {
         <EmptyState
           icon={NotebookPen}
           title="No workouts logged yet"
-          description="Open your plan, tap “Log what you did” under any exercise, and it shows up here."
+          description="Open your weekly suggestions, tap “Log what you did” under any exercise, and it shows up here."
         />
       ) : (
         <div className="flex flex-col gap-4">
