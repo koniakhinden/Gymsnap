@@ -15,6 +15,11 @@ import {
   getAllWeeksHistoryForPrompt,
 } from "@/lib/plan-data";
 import { getEligibleExercises, formatExerciseCompactList } from "@/lib/exercises";
+import {
+  buildLadderLibraryText,
+  isMinimalLoadGym,
+  findBalanceViolations,
+} from "@/lib/movement-patterns";
 import { getUserId } from "@/lib/user";
 import {
   buildProfileSummary,
@@ -57,6 +62,18 @@ function repairPlanInput(raw: unknown, expectedWeek: number): unknown {
       const dayObj: Record<string, unknown> = { ...(day as Record<string, unknown>) };
       dayObj.exercises = tryParseJson(dayObj.exercises);
       dayObj.cardio = tryParseJson(dayObj.cardio);
+      // "reps" and "weight" are string fields ("8-10", "3kg"), but the model
+      // sometimes emits them as bare numbers. Coerce so a single formatting
+      // quirk doesn't fail an otherwise-valid plan.
+      if (Array.isArray(dayObj.exercises)) {
+        dayObj.exercises = dayObj.exercises.map((e) => {
+          if (!e || typeof e !== "object" || Array.isArray(e)) return e;
+          const exObj: Record<string, unknown> = { ...(e as Record<string, unknown>) };
+          if (typeof exObj.reps === "number") exObj.reps = String(exObj.reps);
+          if (typeof exObj.weight === "number") exObj.weight = String(exObj.weight);
+          return exObj;
+        });
+      }
       return dayObj;
     });
   }
@@ -145,7 +162,11 @@ async function withRetryValidation(
   system: string,
   userMessage: string,
   validIds: Set<string>,
-  expectedWeek: number
+  expectedWeek: number,
+  balance: {
+    bodyWeightKg: number;
+    equipmentById: Map<string, { equipment: string | null; mechanic: string | null }>;
+  }
 ): Promise<{ plan: WeekPlan; hasUnverified: boolean }> {
   let plan: WeekPlan;
   try {
@@ -184,6 +205,22 @@ async function withRetryValidation(
   if (hasUnverified) {
     plan = markUnverified(plan, validIds);
   }
+
+  // Balance guard: one corrective pass if any exercise is prescribed at a
+  // near-zero load relative to body weight (see findBalanceViolations). Non-fatal
+  // — if the model can't fix it, we still return the plan.
+  const violations = findBalanceViolations(plan, balance);
+  if (violations.length > 0) {
+    const detail = violations
+      .map((v) => `- ${v.exerciseId} (${v.dayLabel}): ${v.reason}`)
+      .join("\n");
+    const correction = `Your previous plan prescribes loads that are near-zero relative to the user's body weight, so those exercises give almost no training stimulus (target is RIR 2-3):\n${detail}\nRe-generate the full week plan. Replace each of those movements with an angle-scaled bodyweight ladder rung at the right effort (for a pull, use the horizontal row whose difficulty scales with torso angle), or a variable-load option (backpack/jug) heavy enough to reach RIR 2-3. Keep everything else balanced — no near-zero and no barely-possible exercises in the same day.`;
+    const corrected = await requestPlanFromClaude(system, userMessage, expectedWeek, correction);
+    const stillInvalid = findInvalidExerciseIds(corrected, validIds);
+    plan = stillInvalid.length > 0 ? markUnverified(corrected, validIds) : corrected;
+    return { plan, hasUnverified: hasUnverified || stillInvalid.length > 0 };
+  }
+
   return { plan, hasUnverified };
 }
 
@@ -205,11 +242,27 @@ export async function POST() {
       );
     }
 
-    const eligible = await getEligibleExercises(
-      gymData.items.map((i) => ({ name: i.name, category: i.category, details: i.details }))
-    );
+    const gymRefs = gymData.items.map((i) => ({
+      name: i.name,
+      category: i.category,
+      details: i.details,
+    }));
+    const eligible = await getEligibleExercises(gymRefs);
     const validIds = new Set(eligible.map((e) => e.id));
     const compactList = formatExerciseCompactList(eligible);
+
+    const equipmentById = new Map(
+      eligible.map((e) => [e.id, { equipment: e.equipment, mechanic: e.mechanic }])
+    );
+    const bodyWeightKg =
+      profile.weightUnit === "lbs" ? profile.bodyWeight * 0.453592 : profile.bodyWeight;
+    const minimalLoad = isMinimalLoadGym(gymRefs);
+    const ladderBlock = `BODYWEIGHT / VARIABLE-LOAD LADDERS (each ordered easiest -> hardest; pick the rung that puts THIS user at RIR 2-3):
+${buildLadderLibraryText()}${
+      minimalLoad
+        ? `\n\nNOTE: this gym has no meaningfully loadable equipment (only body weight and/or light free weights). Light fixed weights cannot scale to this user, so build the session primarily from the ladders above, choosing rungs by the user's body weight and level.`
+        : ""
+    }`;
 
     const history = await getAllWeeksHistoryForPrompt(userId);
     const nextWeekNumber =
@@ -226,6 +279,8 @@ ${buildEquipmentSummary(gymData.items)}
 TRAINING HISTORY SO FAR:
 ${buildHistorySummary(history)}
 
+${ladderBlock}
+
 VALID EXERCISE LIBRARY (tab-separated: id, name, equipment, primary muscles) — you may ONLY use ids from this list for "exerciseId":
 ${compactList}`;
 
@@ -234,7 +289,8 @@ ${compactList}`;
       system,
       userMessage,
       validIds,
-      nextWeekNumber
+      nextWeekNumber,
+      { bodyWeightKg, equipmentById }
     );
 
     const now = new Date().toISOString();

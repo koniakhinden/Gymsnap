@@ -43,6 +43,8 @@ export default function ExerciseLog({
   plannedWeight,
   weightUnit,
   initialLogs,
+  embedded = false,
+  onSavedChange,
 }: {
   entryId: number;
   plannedSets: number;
@@ -50,6 +52,10 @@ export default function ExerciseLog({
   plannedWeight: string;
   weightUnit: Unit;
   initialLogs: SetLog[];
+  // Embedded in a day's "Fill workout" mode: always open, no self-toggle/close,
+  // and reports its saved state up so the day can show X/Y progress.
+  embedded?: boolean;
+  onSavedChange?: (saved: boolean) => void;
 }) {
   const weightStep = weightUnit === "kg" ? 2.5 : 5;
   const planned = parsePlannedReps(plannedReps);
@@ -72,7 +78,7 @@ export default function ExerciseLog({
     }));
   }
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [sets, setSets] = useState<SetEntry[]>(buildInitial);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(initialLogs.length > 0);
@@ -81,11 +87,13 @@ export default function ExerciseLog({
   function update(i: number, patch: Partial<SetEntry>) {
     setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
     setSaved(false);
+    onSavedChange?.(false);
   }
 
   function copyToAll() {
     setSets((prev) => (prev.length ? prev.map(() => ({ ...prev[0] })) : prev));
     setSaved(false);
+    onSavedChange?.(false);
   }
 
   async function save() {
@@ -110,6 +118,7 @@ export default function ExerciseLog({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save.");
       setSaved(true);
+      onSavedChange?.(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -211,13 +220,15 @@ export default function ExerciseLog({
             Copy set 1 to all
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="ml-auto min-h-[44px] px-2 text-[13px] font-medium text-ink-tertiary hover:text-ink-secondary"
-        >
-          Close
-        </button>
+        {!embedded && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="ml-auto min-h-[44px] px-2 text-[13px] font-medium text-ink-tertiary hover:text-ink-secondary"
+          >
+            Close
+          </button>
+        )}
       </div>
     </div>
   );

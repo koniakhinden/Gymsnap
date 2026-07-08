@@ -47,9 +47,16 @@ async function seed() {
   const { db } = await import("../lib/db");
   const { exercises } = await import("../lib/db/schema");
 
+  const { CUSTOM_EXERCISES } = await import("../lib/custom-exercises");
+
   await ensureExercisesFile();
-  const raw = JSON.parse(fs.readFileSync(EXERCISES_PATH, "utf-8")) as RawExercise[];
-  console.log(`Loaded ${raw.length} exercises. Upserting into Postgres...`);
+  const upstream = JSON.parse(fs.readFileSync(EXERCISES_PATH, "utf-8")) as RawExercise[];
+  // Append GymSnap-authored ladder movements so the DB is a complete source of
+  // truth (the app also merges these at runtime, so a re-seed is not required).
+  const raw: RawExercise[] = [...upstream, ...(CUSTOM_EXERCISES as RawExercise[])];
+  console.log(
+    `Loaded ${upstream.length} upstream + ${CUSTOM_EXERCISES.length} custom exercises. Upserting into Postgres...`
+  );
 
   const rows = raw.map((r) => ({
     id: r.id,

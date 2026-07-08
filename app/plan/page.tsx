@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Printer, Trash2 } from "lucide-react";
-import ImageLightbox, { exerciseImageUrl } from "@/components/ImageLightbox";
-import ExerciseLog from "@/components/ExerciseLog";
+import ImageLightbox from "@/components/ImageLightbox";
+import DayCard from "@/components/DayCard";
 import type { FullWeek } from "@/lib/plan-data";
-import { Button, Card, Badge, Skeleton } from "@/components/ui";
+import { Button, Card, Skeleton, SegmentControl } from "@/components/ui";
+
+type ExportMode = "illustrated" | "compact";
 
 const PROGRESS_MESSAGES = [
   "Reviewing your profile and equipment...",
@@ -14,26 +16,6 @@ const PROGRESS_MESSAGES = [
   "Balancing volume and recovery...",
   "Writing up your week...",
 ];
-
-const EQUIPMENT_LABELS: Record<string, string> = {
-  "body only": "Bodyweight",
-  cable: "Cable station",
-  machine: "Machine",
-  dumbbell: "Dumbbells",
-  barbell: "Barbell",
-  kettlebells: "Kettlebell",
-  "medicine ball": "Medicine ball",
-  "exercise ball": "Exercise ball",
-  bands: "Band",
-  "e-z curl bar": "EZ bar",
-  "foam roll": "Foam roller",
-  other: "Other",
-};
-
-function formatEquipmentLabel(equipment: string | null | undefined): string | null {
-  if (!equipment) return null;
-  return EQUIPMENT_LABELS[equipment] ?? equipment;
-}
 
 export default function PlanPage() {
   const [week, setWeek] = useState<FullWeek | null | undefined>(undefined);
@@ -45,6 +27,34 @@ export default function PlanPage() {
   const [warning, setWarning] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ images: string[]; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [exportMode, setExportMode] = useState<ExportMode>("illustrated");
+  const [preparingPrint, setPreparingPrint] = useState(false);
+  // Accordion: at most one day is in "fill workout" (log) mode at a time.
+  const [openDayId, setOpenDayId] = useState<number | null>(null);
+
+  // Print only after every exercise preview has actually decoded — otherwise the
+  // browser prints before the (remote) images finish loading and they come out
+  // blank. In compact mode there are no images to wait for.
+  async function handlePrint() {
+    if (exportMode === "illustrated") {
+      setPreparingPrint(true);
+      try {
+        const imgs = Array.from(
+          document.querySelectorAll<HTMLImageElement>(".exercise-thumb img")
+        );
+        await Promise.all(
+          imgs.map((img) =>
+            img.decode().catch(() => {
+              /* skip images that fail to load; don't block printing */
+            })
+          )
+        );
+      } finally {
+        setPreparingPrint(false);
+      }
+    }
+    window.print();
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -134,18 +144,19 @@ export default function PlanPage() {
     : "Suggest exercises for week 1";
 
   return (
-    <main className="flex flex-col gap-4 p-4">
+    <main className={`flex flex-col gap-4 p-4 export-${exportMode}`}>
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{week ? `Week ${week.weekNumber}` : "Your weekly suggestions"}</h1>
         {week && (
           <div className="no-print flex items-center gap-2">
             <Button
               variant="secondary"
-              onClick={() => window.print()}
+              loading={preparingPrint}
+              onClick={handlePrint}
               className="!min-h-[44px] !px-3.5 !text-sm"
             >
-              <Printer size={16} strokeWidth={2} />
-              Print / Save as PDF
+              {!preparingPrint && <Printer size={16} strokeWidth={2} />}
+              {preparingPrint ? "Preparing..." : "Print / Save as PDF"}
             </Button>
             <Button
               variant="secondary"
@@ -159,6 +170,21 @@ export default function PlanPage() {
           </div>
         )}
       </header>
+
+      {week && (
+        <div className="no-print flex items-center gap-2 text-sm">
+          <span className="text-ink-tertiary">PDF style:</span>
+          <SegmentControl<ExportMode>
+            className="flex-1 max-w-xs"
+            value={exportMode}
+            onChange={setExportMode}
+            options={[
+              { value: "illustrated", label: "With images" },
+              { value: "compact", label: "Compact (text)" },
+            ]}
+          />
+        </div>
+      )}
 
       {error && (
         <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">
@@ -205,92 +231,15 @@ export default function PlanPage() {
       {week && (
         <div className="flex flex-col gap-4">
           {week.days.map((day) => (
-            <Card key={day.id} className="p-4">
-              <div className="mb-1 flex items-center justify-between">
-                <h2 className="text-[17px] font-semibold">{day.dayLabel}</h2>
-                {day.checkinStatus && (
-                  <Badge
-                    tone={
-                      day.checkinStatus === "completed"
-                        ? "success"
-                        : day.checkinStatus === "partial"
-                          ? "warning"
-                          : "neutral"
-                    }
-                  >
-                    {day.checkinStatus}
-                  </Badge>
-                )}
-              </div>
-              <p className="mb-2 text-sm text-ink-secondary">{day.focus}</p>
-              <p className="mb-3 text-xs text-ink-tertiary">
-                <span className="font-medium">Warmup:</span> {day.warmup}
-              </p>
-
-              <div className="flex flex-col gap-2">
-                {day.exercises.map((ex) => {
-                  const name = ex.nameOverride ?? ex.exercise?.name ?? "Exercise";
-                  const images = ex.exercise?.images ?? [];
-                  const equipmentLabel = formatEquipmentLabel(ex.exercise?.equipment);
-                  return (
-                    <div
-                      key={ex.id}
-                      className="flex gap-3 border-t border-divider pt-2 first:border-t-0 first:pt-0"
-                    >
-                      {images.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setLightbox({ images, title: name })}
-                          className="no-print shrink-0"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={exerciseImageUrl(images[0])}
-                            alt={name}
-                            className="h-14 w-14 rounded-md border border-border object-cover"
-                          />
-                        </button>
-                      )}
-                      <div className="flex-1 text-sm">
-                        <p className="flex flex-wrap items-center gap-1.5 font-medium">
-                          {name}
-                          {equipmentLabel && <Badge tone="beta">{equipmentLabel}</Badge>}
-                          {ex.unverified && <Badge tone="warning">Unverified</Badge>}
-                        </p>
-                        <p className="text-ink-secondary">
-                          {ex.sets} sets x {ex.reps} · {ex.weight || "bodyweight"} · rest{" "}
-                          {ex.restSec}s
-                        </p>
-                        {ex.notes && (
-                          <p className="mt-0.5 text-xs text-ink-tertiary">{ex.notes}</p>
-                        )}
-                        <ExerciseLog
-                          entryId={ex.id}
-                          plannedSets={ex.sets}
-                          plannedReps={ex.reps}
-                          plannedWeight={ex.weight}
-                          weightUnit={weightUnit}
-                          initialLogs={ex.logs}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {day.cardio && (
-                <p className="mt-3 text-xs text-ink-tertiary">
-                  <span className="font-medium">Cardio:</span> {day.cardio.type} for{" "}
-                  {day.cardio.durationMin} min
-                  {day.cardio.incline ? `, incline ${day.cardio.incline}` : ""}
-                  {day.cardio.targetHr ? `, target HR ${day.cardio.targetHr}` : ""}
-                </p>
-              )}
-
-              <p className="mt-2 text-xs text-ink-tertiary">
-                <span className="font-medium">Cooldown:</span> {day.cooldown}
-              </p>
-            </Card>
+            <DayCard
+              key={day.id}
+              day={day}
+              weightUnit={weightUnit}
+              isOpen={openDayId === day.id}
+              onOpen={() => setOpenDayId(day.id)}
+              onDone={() => setOpenDayId((cur) => (cur === day.id ? null : cur))}
+              onImageClick={(images, title) => setLightbox({ images, title })}
+            />
           ))}
         </div>
       )}

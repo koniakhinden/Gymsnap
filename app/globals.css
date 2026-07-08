@@ -118,11 +118,55 @@ body {
   }
 }
 
+.print-only {
+  display: none;
+}
+
 @media print {
   .no-print {
     display: none !important;
   }
+  .print-only {
+    display: block;
+  }
   body {
     background: white;
+  }
+
+  /* One day per page: force a page break after each day, keep the last clean.
+     .day-card is a wrapper; strip the inner card's border/shadow/side padding. */
+  .day-card {
+    break-after: page;
+    page-break-after: always;
+  }
+  .day-card:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .day-card > * {
+    box-shadow: none !important;
+    border: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Keep an exercise row (preview + text) from splitting across a page break. */
+  .exercise-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Small static preview, one frame per exercise (~96px). */
+  .exercise-thumb {
+    display: block !important;
+  }
+  .exercise-thumb img {
+    width: 96px !important;
+    height: 96px !important;
+  }
+
+  /* "Compact (text only)" export hides the illustrations. */
+  .export-compact .exercise-thumb {
+    display: none !important;
   }
 }

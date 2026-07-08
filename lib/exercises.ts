@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { exercises } from "./db/schema";
-import { inArray, or, isNull, eq } from "drizzle-orm";
+import { inArray, or, isNull, eq, sql } from "drizzle-orm";
+import { CUSTOM_EXERCISES } from "./custom-exercises";
 
 export type GymEquipmentRef = {
   name: string;
@@ -73,6 +74,36 @@ function gymText(item: GymEquipmentRef): string {
   return `${item.name} ${item.details ?? ""} ${item.category}`;
 }
 
+// The custom ladder exercises are referenced by exerciseId in generated plans,
+// and exercise_entries.exercise_id has a FK into exercises. Make sure the rows
+// exist before we hand their ids to the model, so the app works without a
+// manual re-seed. Runs once per process.
+let customEnsured = false;
+async function ensureCustomExercises() {
+  if (customEnsured) return;
+  // Upsert (not do-nothing) so definition changes — e.g. added illustrations —
+  // propagate to rows that were inserted by an earlier version.
+  await db
+    .insert(exercises)
+    .values(CUSTOM_EXERCISES)
+    .onConflictDoUpdate({
+      target: exercises.id,
+      set: {
+        name: sql`excluded.name`,
+        equipment: sql`excluded.equipment`,
+        category: sql`excluded.category`,
+        level: sql`excluded.level`,
+        force: sql`excluded.force`,
+        mechanic: sql`excluded.mechanic`,
+        primaryMuscles: sql`excluded.primary_muscles`,
+        secondaryMuscles: sql`excluded.secondary_muscles`,
+        instructions: sql`excluded.instructions`,
+        images: sql`excluded.images`,
+      },
+    });
+  customEnsured = true;
+}
+
 export function resolveAllowedEquipmentTags(gymItems: GymEquipmentRef[]): string[] {
   const tags = new Set<string>();
   for (const item of gymItems) {
@@ -85,6 +116,7 @@ export function resolveAllowedEquipmentTags(gymItems: GymEquipmentRef[]): string
 }
 
 export async function getEligibleExercises(gymItems: GymEquipmentRef[]) {
+  await ensureCustomExercises();
   const tags = resolveAllowedEquipmentTags(gymItems);
   const hasCable = tags.includes("cable");
   const allowed = [...ALWAYS_ALLOWED_EQUIPMENT, ...tags].filter(
@@ -119,7 +151,13 @@ export async function getEligibleExercises(gymItems: GymEquipmentRef[]) {
     MACHINE_TYPES.some((type) => type.test(gymHaystack) && type.test(ex.name))
   );
 
-  return [...rows, ...allowedCableRows, ...allowedMachineRows];
+  // GymSnap-authored bodyweight/variable-load movements (the ladder rungs). They
+  // use only always-allowed equipment, so they're eligible in every gym. Merge
+  // them in and de-dupe in case they've also been seeded into the DB.
+  const seenIds = new Set([...rows, ...allowedCableRows, ...allowedMachineRows].map((r) => r.id));
+  const customRows = CUSTOM_EXERCISES.filter((c) => !seenIds.has(c.id));
+
+  return [...rows, ...allowedCableRows, ...allowedMachineRows, ...customRows];
 }
 
 export function formatExerciseCompactList(

@@ -93,5 +93,13 @@ Hard constraints you must always follow:
 4. Progressive overload must be conservative: compared to the most recent previous week for the same or similar exercises, total working load (sets x reps x weight, or duration for cardio) must not increase by more than 5-10% per week. If check-in feedback reports pain, low wellbeing, or a skipped/partial day, hold or reduce load instead of progressing.
 5. Only include a "cardio" block on a day if it fits the user's stated cardio preference and available cardio equipment; otherwise set cardio to null for that day.
 6. Number of days in the plan must equal the user's requested training days per week, and total time per day (warmup + exercises + cardio + cooldown) should roughly fit their requested session length.
-7. Respond only by calling the report_week_plan tool — no prose.`;
+7. Respond only by calling the report_week_plan tool — no prose.
+
+LOAD BALANCING — pick exercises by target EFFORT, not by "what equipment unlocks":
+8. Every exercise must land at roughly RIR 2-3 (RPE 7-8) for THIS user, given their body weight and experience level. Choose the variant that hits that effort. Equipment is secondary — a movement pattern covered at the right effort beats a "fancier" movement done far too light or far too hard.
+9. Think in movement PATTERNS (push / pull / squat / hinge / core / calf) and cover them, rather than picking isolated items. When bodyweight ladders are provided in the user message, treat each ladder as ordered easiest -> hardest and put the user on the rung that produces RIR 2-3:
+   - Heavier / deconditioned / beginner users → an EASIER rung (more upright push angle, more vertical row torso, chair-capped or assisted squats, seated/lying/supported variants). Avoid impact and deep-loaded movements at the start (no jumping, deep lunges, or full floor push-ups for a heavy beginner).
+   - Stronger / lighter users → a HARDER rung.
+10. Never prescribe a load that is near-zero relative to body weight (e.g. a 3 kg dumbbell compound for a 100 kg user) — that is essentially no stimulus. If the only free weights are too light to reach RIR 2-3 on a compound, switch that movement to an angle-scaled bodyweight ladder rung (for pull: the horizontal row whose difficulty scales with torso angle) instead of a token dumbbell. Do NOT place a near-zero-effort exercise and a near-maximal (barely-possible) exercise in the same day.
+11. Progress by ADDING WEIGHT only when the equipment allows it. When the load is fixed (bodyweight or a single light implement), progress mechanically in THIS priority order: reps → sets → tempo (3-4 s eccentric) → pauses → range of motion → unilateral → shorter rest → change leverage (support angle / height). State the applied progression cue briefly in the exercise "notes".`;
 }

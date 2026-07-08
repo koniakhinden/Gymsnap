@@ -12,6 +12,7 @@ import {
   equipmentItems,
 } from "./db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { CUSTOM_BY_ID } from "./custom-exercises";
 
 export async function getLatestProfile(userId: string) {
   const rows = await db
@@ -146,6 +147,26 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
           .where(eq(exercises.id, entry.exerciseId));
         exerciseRow = rows[0];
       }
+      // Fall back to the GymSnap-authored library for custom ladder rungs that
+      // may not be in the DB yet (e.g. before a re-seed).
+      const custom = entry.exerciseId ? CUSTOM_BY_ID[entry.exerciseId] : undefined;
+      const resolvedExercise = exerciseRow
+        ? {
+            id: exerciseRow.id,
+            name: exerciseRow.name,
+            images: exerciseRow.images,
+            instructions: exerciseRow.instructions,
+            equipment: exerciseRow.equipment,
+          }
+        : custom
+          ? {
+              id: custom.id,
+              name: custom.name,
+              images: custom.images,
+              instructions: custom.instructions,
+              equipment: custom.equipment,
+            }
+          : null;
       fullEntries.push({
         id: entry.id,
         orderIndex: entry.orderIndex,
@@ -157,15 +178,7 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
         restSec: entry.restSec,
         notes: entry.notes,
         unverified: entry.unverified,
-        exercise: exerciseRow
-          ? {
-              id: exerciseRow.id,
-              name: exerciseRow.name,
-              images: exerciseRow.images,
-              instructions: exerciseRow.instructions,
-              equipment: exerciseRow.equipment,
-            }
-          : null,
+        exercise: resolvedExercise,
         logs: logRows
           .filter((l) => l.entryId === entry.id)
           .map((l) => ({
