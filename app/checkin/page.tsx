@@ -26,21 +26,29 @@ const STATUS_META: Record<DayStatus, { label: string; on: string }> = {
 };
 const STATUS_ORDER: DayStatus[] = ["completed", "partial", "skipped"];
 
+// A day counts as "done on cardio alone" when the user logged at least this many
+// cardio minutes and did no strength work.
+const CARDIO_COMPLETE_MIN = 20;
+
 /**
  * Default a day's status from what the user actually logged:
- *   all exercises logged → "completed"
- *   some logged          → "partial"
- *   none logged          → "skipped" (don't pretend an untouched day was done)
- * A day with nothing to log (e.g. a cardio-only day) defaults to "completed"
- * since we can't infer it from set logs; the user can still change any of these.
+ *   all strength exercises logged → "completed"
+ *   some strength logged          → "partial"
+ *   no strength, cardio ≥ 20 min  → "completed" (cardio-only day counts as full)
+ *   no strength, some cardio      → "partial"
+ *   nothing logged at all         → "skipped" (don't pretend it was done)
+ * The user can still change any of these.
  */
 function deriveStatusFromLogs(d: FullWeek["days"][number]): DayStatus {
   const total = d.exercises.length;
-  if (total === 0) return "completed";
   const logged = d.exercises.filter((e) => e.logs.length > 0).length;
-  if (logged === 0) return "skipped";
-  if (logged < total) return "partial";
-  return "completed";
+  const cardioMin = d.cardioActualMin ?? 0;
+
+  if (total > 0 && logged === total) return "completed";
+  if (logged > 0) return "partial";
+  if (cardioMin >= CARDIO_COMPLETE_MIN) return "completed";
+  if (cardioMin > 0) return "partial";
+  return "skipped";
 }
 
 export default function CheckinPage() {

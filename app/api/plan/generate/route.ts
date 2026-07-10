@@ -71,6 +71,8 @@ function repairPlanInput(raw: unknown, expectedWeek: number): unknown {
           const exObj: Record<string, unknown> = { ...(e as Record<string, unknown>) };
           if (typeof exObj.reps === "number") exObj.reps = String(exObj.reps);
           if (typeof exObj.weight === "number") exObj.weight = String(exObj.weight);
+          // Alternatives may arrive as a JSON string; parse before Zod runs.
+          exObj.alternatives = tryParseJson(exObj.alternatives);
           return exObj;
         });
       }
@@ -134,6 +136,11 @@ function findInvalidExerciseIds(plan: WeekPlan, validIds: Set<string>): string[]
       if (ex.exerciseId && !validIds.has(ex.exerciseId)) {
         invalid.add(ex.exerciseId);
       }
+      for (const alt of ex.alternatives) {
+        if (alt.exerciseId && !validIds.has(alt.exerciseId)) {
+          invalid.add(alt.exerciseId);
+        }
+      }
     }
   }
   return [...invalid];
@@ -145,14 +152,26 @@ function markUnverified(plan: WeekPlan, validIds: Set<string>): WeekPlan {
     days: plan.days.map((day) => ({
       ...day,
       exercises: day.exercises.map((ex) => {
+        // Drop invalid ids on alternatives too, but keep them as described
+        // movements (null id + nameOverride) rather than marking them unverified.
+        const alternatives = ex.alternatives.map((alt) =>
+          alt.exerciseId && !validIds.has(alt.exerciseId)
+            ? {
+                ...alt,
+                nameOverride: alt.nameOverride ?? `Alternative (${alt.exerciseId})`,
+                exerciseId: null,
+              }
+            : alt
+        );
         if (ex.exerciseId && !validIds.has(ex.exerciseId)) {
           return {
             ...ex,
             nameOverride: ex.nameOverride ?? `Unverified exercise (${ex.exerciseId})`,
             exerciseId: null,
+            alternatives,
           };
         }
-        return ex;
+        return { ...ex, alternatives };
       }),
     })),
   };
@@ -330,6 +349,7 @@ ${compactList}`;
           restSec: ex.restSec,
           notes: ex.notes,
           unverified: ex.exerciseId === null && ex.nameOverride?.startsWith("Unverified") ? true : false,
+          alternatives: ex.alternatives,
         });
       }
     }

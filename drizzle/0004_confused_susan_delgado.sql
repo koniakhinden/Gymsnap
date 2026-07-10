@@ -1,0 +1,1 @@
+ALTER TABLE "days" ADD COLUMN "cardio_actual_min" integer;

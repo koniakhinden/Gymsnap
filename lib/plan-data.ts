@@ -50,6 +50,18 @@ export type SetLog = {
   loggedAt: string;
 };
 
+export type HydratedAlternative = {
+  exerciseId: string | null;
+  nameOverride: string | null;
+  note: string;
+  exercise: {
+    id: string;
+    name: string;
+    images: string[];
+    equipment: string | null;
+  } | null;
+};
+
 export type FullExerciseEntry = {
   id: number;
   orderIndex: number;
@@ -68,6 +80,7 @@ export type FullExerciseEntry = {
     instructions: string[];
     equipment: string | null;
   } | null;
+  alternatives: HydratedAlternative[];
   logs: SetLog[];
 };
 
@@ -84,6 +97,8 @@ export type FullDay = {
     incline: string | null;
     targetHr: string | null;
   } | null;
+  // Minutes of cardio the user actually logged for this day (null = not logged).
+  cardioActualMin: number | null;
   exercises: FullExerciseEntry[];
   checkinStatus: "completed" | "partial" | "skipped" | null;
 };
@@ -167,6 +182,31 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
               equipment: custom.equipment,
             }
           : null;
+      // Resolve library images/equipment for each stored alternative.
+      const entryAlts = entry.alternatives ?? [];
+      const altIds = entryAlts
+        .map((a) => a.exerciseId)
+        .filter((id): id is string => id !== null);
+      const altRows = altIds.length
+        ? await db.select().from(exercises).where(inArray(exercises.id, altIds))
+        : [];
+      const altById = new Map(altRows.map((r) => [r.id, r]));
+      const alternatives: HydratedAlternative[] = entryAlts.map((alt) => {
+        const row = alt.exerciseId ? altById.get(alt.exerciseId) : undefined;
+        const custom = alt.exerciseId ? CUSTOM_BY_ID[alt.exerciseId] : undefined;
+        const resolved = row
+          ? { id: row.id, name: row.name, images: row.images, equipment: row.equipment }
+          : custom
+            ? { id: custom.id, name: custom.name, images: custom.images, equipment: custom.equipment }
+            : null;
+        return {
+          exerciseId: alt.exerciseId,
+          nameOverride: alt.nameOverride,
+          note: alt.note ?? "",
+          exercise: resolved,
+        };
+      });
+
       fullEntries.push({
         id: entry.id,
         orderIndex: entry.orderIndex,
@@ -179,6 +219,7 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
         notes: entry.notes,
         unverified: entry.unverified,
         exercise: resolvedExercise,
+        alternatives,
         logs: logRows
           .filter((l) => l.entryId === entry.id)
           .map((l) => ({
@@ -210,6 +251,7 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
             targetHr: day.cardioTargetHr,
           }
         : null,
+      cardioActualMin: day.cardioActualMin,
       exercises: fullEntries,
       checkinStatus: dayCheckin ? dayCheckin.status : null,
     });
@@ -297,6 +339,19 @@ export async function entryBelongsToUser(
     .innerJoin(days, eq(exerciseEntries.dayId, days.id))
     .innerJoin(weeks, eq(days.weekId, weeks.id))
     .where(and(eq(exerciseEntries.id, entryId), eq(weeks.userId, userId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+export async function dayBelongsToUser(
+  userId: string,
+  dayId: number
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: days.id })
+    .from(days)
+    .innerJoin(weeks, eq(days.weekId, weeks.id))
+    .where(and(eq(days.id, dayId), eq(weeks.userId, userId)))
     .limit(1);
   return rows.length > 0;
 }

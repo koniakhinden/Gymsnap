@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ClipboardList } from "lucide-react";
+import { CheckCircle2, ClipboardList, Repeat2, ChevronDown } from "lucide-react";
 import { exerciseImageUrl } from "@/components/ImageLightbox";
 import ExerciseLog from "@/components/ExerciseLog";
 import type { FullDay, SetLog } from "@/lib/plan-data";
-import { Button, Card, Badge } from "@/components/ui";
+import { Button, Card, Badge, Stepper, cn } from "@/components/ui";
 
 const EQUIPMENT_LABELS: Record<string, string> = {
   "body only": "Bodyweight",
@@ -63,6 +63,17 @@ export default function DayCard({
     () => new Set(day.exercises.filter((e) => e.logs.length > 0).map((e) => e.id))
   );
   const loggedCount = savedIds.size;
+
+  // Which exercises have their alternatives list expanded (per exercise id).
+  const [openAlts, setOpenAlts] = useState<Set<number>>(() => new Set());
+  function toggleAlts(entryId: number) {
+    setOpenAlts((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) next.delete(entryId);
+      else next.add(entryId);
+      return next;
+    });
+  }
 
   function markSaved(entryId: number, saved: boolean) {
     setSavedIds((prev) => {
@@ -162,6 +173,53 @@ export default function DayCard({
                 </p>
                 {ex.notes && <p className="mt-0.5 text-xs text-ink-tertiary">{ex.notes}</p>}
 
+                {/* Occupied-equipment backups. no-print keeps them out of the PDF. */}
+                {ex.alternatives.length > 0 && (
+                  <div className="no-print mt-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleAlts(ex.id)}
+                      aria-expanded={openAlts.has(ex.id)}
+                      className="inline-flex min-h-[32px] items-center gap-1 text-[13px] font-semibold text-accent transition-colors hover:text-accent-hover"
+                    >
+                      <Repeat2 size={14} strokeWidth={2} />
+                      If equipment is taken ({ex.alternatives.length})
+                      <ChevronDown
+                        size={14}
+                        strokeWidth={2.5}
+                        className={cn(
+                          "transition-transform",
+                          openAlts.has(ex.id) && "rotate-180",
+                        )}
+                      />
+                    </button>
+                    {openAlts.has(ex.id) && (
+                      <ul className="mt-1 flex flex-col gap-1.5 rounded-field border border-divider bg-surface-sunken/40 p-2.5">
+                        {ex.alternatives.map((alt, i) => {
+                          const altName =
+                            alt.nameOverride ?? alt.exercise?.name ?? "Alternative";
+                          const altEquip = formatEquipmentLabel(alt.exercise?.equipment);
+                          return (
+                            <li key={i} className="text-[13px]">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-medium text-ink">{altName}</span>
+                                {altEquip && (
+                                  <Badge tone="neutral" className="shrink-0">
+                                    {altEquip}
+                                  </Badge>
+                                )}
+                              </div>
+                              {alt.note && (
+                                <p className="text-xs text-ink-tertiary">{alt.note}</p>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
                 {/* Read-only: show what was logged, if we have the set data.
                     (Sets saved earlier this session set the check icon above via
                     savedIds; their detail appears after the next reload.) */}
@@ -189,12 +247,32 @@ export default function DayCard({
       </div>
 
       {day.cardio && (
-        <p className="mt-3 text-xs text-ink-tertiary">
-          <span className="font-medium">Cardio:</span> {day.cardio.type} for{" "}
-          {day.cardio.durationMin} min
-          {day.cardio.incline ? `, incline ${day.cardio.incline}` : ""}
-          {day.cardio.targetHr ? `, target HR ${day.cardio.targetHr}` : ""}
-        </p>
+        <>
+          <p className="mt-3 text-xs text-ink-tertiary">
+            <span className="font-medium">Cardio:</span> {day.cardio.type} for{" "}
+            {day.cardio.durationMin} min
+            {day.cardio.incline ? `, incline ${day.cardio.incline}` : ""}
+            {day.cardio.targetHr ? `, target HR ${day.cardio.targetHr}` : ""}
+          </p>
+          {isOpen ? (
+            <CardioLog
+              dayId={day.id}
+              prescribedMin={day.cardio.durationMin}
+              initialMin={day.cardioActualMin}
+            />
+          ) : (
+            day.cardioActualMin != null && (
+              <p className="mt-1 text-xs text-accent">
+                <CheckCircle2
+                  size={13}
+                  strokeWidth={2.5}
+                  className="mb-0.5 mr-1 inline"
+                />
+                Cardio done: {day.cardioActualMin} min
+              </p>
+            )
+          )}
+        </>
       )}
 
       <p className="mt-2 text-xs text-ink-tertiary">
@@ -225,6 +303,79 @@ export default function DayCard({
         </div>
       )}
     </Card>
+    </div>
+  );
+}
+
+/**
+ * Cardio logger for a day. Separate from the strength set logs on purpose:
+ * saving it never touches the "X/Y saved" exercise progress. It just records how
+ * many minutes of cardio the user actually did, which the check-in uses to mark
+ * a cardio-only day complete (≥20 min).
+ */
+function CardioLog({
+  dayId,
+  prescribedMin,
+  initialMin,
+}: {
+  dayId: number;
+  prescribedMin: number;
+  initialMin: number | null;
+}) {
+  const [min, setMin] = useState<number>(initialMin ?? prescribedMin ?? 20);
+  const [saved, setSaved] = useState(initialMin != null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/days/${dayId}/cardio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actualMin: min }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save cardio.");
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="no-print mt-2 flex flex-col gap-1.5 rounded-field border border-accent-badge-border bg-accent-fill/50 p-2.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-ink-tertiary">
+        Cardio done (minutes)
+      </span>
+      <div className="flex items-center gap-2">
+        <Stepper
+          ariaLabel="cardio minutes done"
+          value={min}
+          min={0}
+          max={300}
+          step={5}
+          onChange={(v) => {
+            setMin(v);
+            setSaved(false);
+          }}
+        />
+        <Button
+          onClick={save}
+          loading={saving}
+          variant={saved ? "secondary" : "primary"}
+          className="!min-h-[44px] !px-4 !py-2 !text-sm"
+        >
+          {saving ? "Saving..." : saved ? "Saved" : "Save"}
+        </Button>
+      </div>
+      {error && <p className="text-[13px] text-error">{error}</p>}
+      <p className="text-[11px] text-ink-tertiary">
+        Logged separately — doesn’t change your sets progress above.
+      </p>
     </div>
   );
 }

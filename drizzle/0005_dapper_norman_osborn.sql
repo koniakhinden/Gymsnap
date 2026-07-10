@@ -1,0 +1,1 @@
+ALTER TABLE "exercise_entries" ADD COLUMN "alternatives" jsonb DEFAULT '[]'::jsonb NOT NULL;

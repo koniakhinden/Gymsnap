@@ -104,6 +104,10 @@ export const days = pgTable("days", {
   cardioDurationMin: integer("cardio_duration_min"),
   cardioIncline: text("cardio_incline"),
   cardioTargetHr: text("cardio_target_hr"),
+  // Actual cardio minutes the user logged for this day (null = not logged).
+  // Kept separate from exercise set logs so it never counts toward the
+  // strength "X/Y saved" progress, but can still mark a cardio-only day done.
+  cardioActualMin: integer("cardio_actual_min"),
 });
 
 export const exerciseEntries = pgTable("exercise_entries", {
@@ -120,6 +124,12 @@ export const exerciseEntries = pgTable("exercise_entries", {
   restSec: integer("rest_sec").notNull().default(60),
   notes: text("notes").default(""),
   unverified: boolean("unverified").notNull().default(false),
+  // Up to 3 fallback exercises (occupied-equipment backups). Shown behind a
+  // button in the UI and excluded from the printed PDF.
+  alternatives: jsonb("alternatives")
+    .$type<{ exerciseId: string | null; nameOverride: string | null; note: string }[]>()
+    .notNull()
+    .default([]),
 });
 
 // Actual performed sets for a planned exercise entry — the workout diary.
