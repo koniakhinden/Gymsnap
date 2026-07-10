@@ -1,5 +1,9 @@
+import { desc, eq } from "drizzle-orm";
 import { db } from "./db";
 import { weeks, quickWorkouts, profiles, checkins } from "./db/schema";
+import { getAllWeeksHistoryForPrompt, type FullWeek } from "./plan-data";
+import { hydrateQuickWorkout, type HydratedQuickWorkout } from "./quick-workout-data";
+import type { QuickWorkout } from "./validation/quick-workout";
 
 // Owner-facing usage analytics. Everything is derived from existing tables
 // (weeks, quick_workouts, check-ins, profiles) — no separate events store — so
@@ -29,6 +33,36 @@ export type AdminAnalytics = {
   daily: { date: string; weeks: number; quick: number }[];
   users: AdminUserRow[];
 };
+
+export type AdminUserPrograms = {
+  userId: string;
+  weeks: FullWeek[];
+  quickWorkouts: {
+    id: number;
+    createdAt: string;
+    timeMin: number;
+    workout: HydratedQuickWorkout;
+  }[];
+};
+
+/** Full generated programs for one user — every weekly plan and quick workout. */
+export async function getUserPrograms(userId: string): Promise<AdminUserPrograms> {
+  const userWeeks = await getAllWeeksHistoryForPrompt(userId);
+  const qRows = await db
+    .select()
+    .from(quickWorkouts)
+    .where(eq(quickWorkouts.userId, userId))
+    .orderBy(desc(quickWorkouts.id));
+  const quick = await Promise.all(
+    qRows.map(async (r) => ({
+      id: r.id,
+      createdAt: r.createdAt,
+      timeMin: r.timeMin,
+      workout: await hydrateQuickWorkout(r.result as QuickWorkout),
+    }))
+  );
+  return { userId, weeks: userWeeks, quickWorkouts: quick };
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

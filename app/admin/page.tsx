@@ -27,7 +27,45 @@ type Analytics = {
   users: UserRow[];
 };
 
+// Structural subset of the /api/admin/user payload — only the fields we render.
+type ProgExercise = {
+  nameOverride: string | null;
+  exercise: { name: string } | null;
+  sets: number;
+  reps: string;
+  weight: string;
+  alternatives: { nameOverride: string | null; exercise: { name: string } | null; note: string }[];
+};
+type ProgWeek = {
+  weekNumber: number;
+  createdAt: string;
+  days: {
+    dayLabel: string;
+    focus: string;
+    cardio: { type: string; durationMin: number } | null;
+    cardioActualMin: number | null;
+    exercises: ProgExercise[];
+  }[];
+};
+type ProgQuick = {
+  id: number;
+  createdAt: string;
+  timeMin: number;
+  workout: {
+    title: string;
+    focus: string;
+    sessionType?: string;
+    blocks: { nameOverride: string | null; exercise: { name: string } | null; sets: number; reps: string }[];
+    cardio?: { name: string; durationOrReps: string }[];
+  };
+};
+type UserPrograms = { userId: string; weeks: ProgWeek[]; quickWorkouts: ProgQuick[] };
+
 const KEY_STORAGE = "gymsnap_admin_key";
+
+function exName(e: { nameOverride: string | null; exercise: { name: string } | null }): string {
+  return e.nameOverride ?? e.exercise?.name ?? "Exercise";
+}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -40,6 +78,12 @@ export default function AdminPage() {
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Drill-down into one user's generated programs.
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [detail, setDetail] = useState<UserPrograms | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   // Restore a previously entered key so the dashboard opens straight away.
   useEffect(() => {
@@ -77,6 +121,29 @@ export default function AdminPage() {
     };
   }, [key]);
 
+  // Load a user's programs when one is selected.
+  useEffect(() => {
+    if (!key || !selectedUser) return;
+    let cancelled = false;
+    setDetailLoading(true);
+    setDetailError(null);
+    setDetail(null);
+    fetch(`/api/admin/user?userId=${encodeURIComponent(selectedUser)}`, {
+      headers: { "x-admin-key": key },
+    })
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Failed to load.");
+        return body as UserPrograms;
+      })
+      .then((body) => !cancelled && setDetail(body))
+      .catch((err) => !cancelled && setDetailError(err instanceof Error ? err.message : "Something went wrong."))
+      .finally(() => !cancelled && setDetailLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [key, selectedUser]);
+
   function submitKey(e: React.FormEvent) {
     e.preventDefault();
     setKey(keyInput.trim());
@@ -111,6 +178,118 @@ export default function AdminPage() {
             View dashboard
           </Button>
         </form>
+      </main>
+    );
+  }
+
+  // ---- user drill-down ----
+  if (selectedUser) {
+    return (
+      <main className="flex flex-col gap-4 p-4">
+        <header className="flex items-center justify-between gap-2">
+          <div>
+            <button
+              type="button"
+              onClick={() => setSelectedUser(null)}
+              className="text-[13px] font-medium text-accent hover:text-accent-hover"
+            >
+              ← Back
+            </button>
+            <h1 className="mt-1 font-mono text-lg font-bold">{selectedUser.slice(0, 12)}</h1>
+          </div>
+        </header>
+
+        {detailLoading && <Skeleton className="h-40 w-full rounded-card" />}
+        {detailError && <p className="text-sm text-error">{detailError}</p>}
+
+        {detail && (
+          <>
+            <section className="flex flex-col gap-3">
+              <p className="text-sm font-semibold">Weekly plans ({detail.weeks.length})</p>
+              {detail.weeks.length === 0 && (
+                <p className="text-sm text-ink-tertiary">No weekly plans.</p>
+              )}
+              {detail.weeks.map((w) => (
+                <Card key={w.weekNumber} className="flex flex-col gap-2 p-4">
+                  <p className="text-sm font-semibold">
+                    Week {w.weekNumber}
+                    <span className="ml-2 font-normal text-ink-tertiary">
+                      {new Date(w.createdAt).toLocaleDateString()}
+                    </span>
+                  </p>
+                  {w.days.map((d, di) => (
+                    <div key={di} className="border-t border-divider pt-2 first:border-t-0 first:pt-0">
+                      <p className="text-[13px] font-medium">
+                        {d.dayLabel} — <span className="text-ink-secondary">{d.focus}</span>
+                      </p>
+                      <ul className="mt-1 flex flex-col gap-1">
+                        {d.exercises.map((e, ei) => (
+                          <li key={ei} className="text-[13px] text-ink-secondary">
+                            {exName(e)}{" "}
+                            <span className="text-ink-tertiary">
+                              · {e.sets}×{e.reps} · {e.weight || "bw"}
+                            </span>
+                            {e.alternatives.length > 0 && (
+                              <span className="text-[11px] text-ink-tertiary">
+                                {" "}
+                                (alts: {e.alternatives.map((a) => exName(a)).join(", ")})
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      {d.cardio && (
+                        <p className="mt-1 text-[12px] text-ink-tertiary">
+                          Cardio: {d.cardio.type} · {d.cardio.durationMin} min
+                          {d.cardioActualMin != null ? ` · done ${d.cardioActualMin} min` : ""}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </Card>
+              ))}
+            </section>
+
+            <section className="flex flex-col gap-3">
+              <p className="text-sm font-semibold">
+                Quick workouts ({detail.quickWorkouts.length})
+              </p>
+              {detail.quickWorkouts.length === 0 && (
+                <p className="text-sm text-ink-tertiary">No quick workouts.</p>
+              )}
+              {detail.quickWorkouts.map((q) => (
+                <Card key={q.id} className="flex flex-col gap-1.5 p-4">
+                  <p className="text-sm font-semibold">
+                    {q.workout.title}
+                    <span className="ml-2 font-normal text-ink-tertiary">
+                      {q.workout.sessionType ?? "strength"} · {q.timeMin} min ·{" "}
+                      {new Date(q.createdAt).toLocaleDateString()}
+                    </span>
+                  </p>
+                  <p className="text-[13px] text-ink-secondary">{q.workout.focus}</p>
+                  {q.workout.blocks.length > 0 && (
+                    <ul className="flex flex-col gap-0.5">
+                      {q.workout.blocks.map((b, bi) => (
+                        <li key={bi} className="text-[13px] text-ink-secondary">
+                          {exName(b)} <span className="text-ink-tertiary">· {b.sets}×{b.reps}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {q.workout.cardio && q.workout.cardio.length > 0 && (
+                    <ul className="flex flex-col gap-0.5">
+                      {q.workout.cardio.map((c, ci) => (
+                        <li key={ci} className="text-[13px] text-ink-secondary">
+                          {c.name} <span className="text-ink-tertiary">· {c.durationOrReps}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
+              ))}
+            </section>
+          </>
+        )}
       </main>
     );
   }
@@ -207,8 +386,12 @@ export default function AdminPage() {
                 </thead>
                 <tbody>
                   {data.users.map((u) => (
-                    <tr key={u.userId} className="border-t border-divider">
-                      <td className="px-1 py-1.5 font-mono text-[12px] text-ink-secondary">
+                    <tr
+                      key={u.userId}
+                      onClick={() => setSelectedUser(u.userId)}
+                      className="cursor-pointer border-t border-divider hover:bg-surface-sunken/50"
+                    >
+                      <td className="px-1 py-1.5 font-mono text-[12px] text-accent underline-offset-2 hover:underline">
                         {u.userId.slice(0, 8)}
                       </td>
                       <td className="px-1 py-1.5 text-right tabular-nums">{u.weeks}</td>
