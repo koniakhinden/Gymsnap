@@ -173,6 +173,23 @@ export default function DayCard({
                 </p>
                 {ex.notes && <p className="mt-0.5 text-xs text-ink-tertiary">{ex.notes}</p>}
 
+                {/* No picture for this movement → show the written how-to inline so
+                    there's always guidance (instructions live in the lightbox when
+                    an image exists). Falls back to nothing extra if we have neither. */}
+                {images.length === 0 &&
+                  (ex.exercise?.instructions?.length ?? 0) > 0 && (
+                    <details className="mt-1 text-xs">
+                      <summary className="cursor-pointer list-none font-medium text-accent hover:text-accent-hover">
+                        How to do it
+                      </summary>
+                      <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-ink-secondary">
+                        {ex.exercise!.instructions.map((step, i) => (
+                          <li key={i}>{step}</li>
+                        ))}
+                      </ol>
+                    </details>
+                  )}
+
                 {/* Occupied-equipment backups. no-print keeps them out of the PDF. */}
                 {ex.alternatives.length > 0 && (
                   <div className="no-print mt-1">
