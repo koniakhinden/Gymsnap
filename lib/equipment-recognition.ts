@@ -70,7 +70,7 @@ const equipmentTool: Anthropic.Tool = {
 // the total request far below the API size limit (fixes 413 request_too_large).
 // The same compressed buffer is what gets uploaded to Vercel Blob, so we never
 // store multi-megabyte originals.
-async function compressImage(buffer: Buffer, mimeType: string): Promise<Buffer> {
+export async function compressImage(buffer: Buffer, mimeType: string): Promise<Buffer> {
   try {
     return await sharp(buffer)
       .rotate() // respect EXIF orientation before stripping metadata
@@ -89,7 +89,7 @@ async function compressImage(buffer: Buffer, mimeType: string): Promise<Buffer> 
   }
 }
 
-function toClaudeImageBlock(compressedJpeg: Buffer): Anthropic.ImageBlockParam {
+export function toClaudeImageBlock(compressedJpeg: Buffer): Anthropic.ImageBlockParam {
   return {
     type: "image",
     source: {

@@ -1,0 +1,32 @@
+import { NextRequest, NextResponse } from "next/server";
+import { ClaudeError } from "@/lib/anthropic";
+import { validateUploadedFiles } from "@/lib/equipment-recognition";
+import { recognizeIngredientsFromFiles } from "@/lib/ingredient-recognition";
+import { enforceAiRateLimit } from "@/lib/rate-limit";
+import { jsonError } from "@/lib/api-error";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+export async function POST(req: NextRequest) {
+  try {
+    const limited = await enforceAiRateLimit(req, "cook-recognize");
+    if (limited) return limited;
+
+    const formData = await req.formData();
+    const files = formData.getAll("photos").filter((f): f is File => f instanceof File);
+
+    const validationError = validateUploadedFiles(files);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
+    }
+
+    const { items, photoUrls } = await recognizeIngredientsFromFiles(files);
+    return NextResponse.json({ items, photoUrls });
+  } catch (err) {
+    if (err instanceof ClaudeError) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+    return jsonError(err, "Couldn't read the photos.");
+  }
+}

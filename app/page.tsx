@@ -106,10 +106,19 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <Link href="/quick" className={buttonClass({ size: "lg", block: true })}>
-        <Zap size={20} strokeWidth={2} />
-        Train now
-      </Link>
+      <div className="flex gap-2">
+        <Link href="/quick" className={buttonClass({ size: "lg", block: true })}>
+          <Zap size={20} strokeWidth={2} />
+          Train now
+        </Link>
+        <Link
+          href="/cook"
+          className={buttonClass({ size: "lg", block: true, variant: "secondary" })}
+        >
+          <Utensils size={20} strokeWidth={2} />
+          Cook now
+        </Link>
+      </div>
 
       <Card className="p-4">
         <h2 className="mb-1 text-[20px] font-semibold tracking-[-0.01em]">

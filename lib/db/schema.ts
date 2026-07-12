@@ -254,6 +254,27 @@ export const eaters = pgTable(
   (t) => [index("eaters_user_id_idx").on(t.userId)]
 );
 
+// One-off "Cook now" sessions — a recipe generated from what the user has on
+// hand. Mirrors quick_workouts.
+export const quickMeals = pgTable(
+  "quick_meals",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    source: text("source", { enum: ["photo", "manual"] }).notNull(),
+    ingredients: jsonb("ingredients")
+      .$type<{ name: string; category?: string }[]>()
+      .notNull()
+      .default([]),
+    mealType: text("meal_type").notNull().default("any"),
+    servings: integer("servings").notNull().default(1),
+    note: text("note").notNull().default(""),
+    result: jsonb("result").notNull(),
+    createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
+  },
+  (t) => [index("quick_meals_user_id_idx").on(t.userId)]
+);
+
 // Account-level food preferences + location for local availability. One row per
 // user (upserted).
 export const nutritionSettings = pgTable("nutrition_settings", {
