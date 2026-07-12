@@ -9,6 +9,7 @@ export type HydratedBlock = QuickBlock & {
     name: string;
     images: string[];
     equipment: string | null;
+    instructions: string[];
   } | null;
 };
 
@@ -46,6 +47,7 @@ export async function hydrateQuickWorkout(
               name: ex.name,
               images: ex.images,
               equipment: ex.equipment,
+              instructions: ex.instructions,
             }
           : null,
       };

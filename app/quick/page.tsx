@@ -82,7 +82,13 @@ type Block = {
   whyIncluded: string;
   easierOption: string;
   harderOption: string;
-  exercise: { id: string; name: string; images: string[]; equipment: string | null } | null;
+  exercise: {
+    id: string;
+    name: string;
+    images: string[];
+    equipment: string | null;
+    instructions: string[];
+  } | null;
 };
 type Segment = { name: string; howTo: string; durationOrReps: string };
 type SessionType = "strength" | "cardio" | "mixed";
@@ -431,6 +437,18 @@ export default function QuickWorkoutPage() {
                     </p>
                     {block.whyIncluded && (
                       <p className="mt-1 text-xs text-ink-tertiary">{block.whyIncluded}</p>
+                    )}
+                    {(block.exercise?.instructions?.length ?? 0) > 0 && (
+                      <details className="mt-1 text-xs">
+                        <summary className="cursor-pointer list-none font-medium text-accent hover:text-accent-hover">
+                          How to do it
+                        </summary>
+                        <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-ink-secondary">
+                          {block.exercise!.instructions.map((step, si) => (
+                            <li key={si}>{step}</li>
+                          ))}
+                        </ol>
+                      </details>
                     )}
                   </div>
                 </div>
