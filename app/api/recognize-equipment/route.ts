@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ClaudeError } from "@/lib/anthropic";
 import { enforceAiRateLimit } from "@/lib/rate-limit";
+import { jsonError } from "@/lib/api-error";
 import {
   recognizeEquipmentFromFiles,
   validateUploadedFiles,
@@ -27,12 +28,9 @@ export async function POST(req: NextRequest) {
     const { items, photoUrls } = await recognizeEquipmentFromFiles(files, "gym");
     return NextResponse.json({ items, photoUrls });
   } catch (err) {
-    // TODO(beta): surfacing raw error details to the client for debugging.
-    // Replace with a generic message before public launch.
-    const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    const message =
-      err instanceof ClaudeError ? err.message : `Recognition failed — ${detail}`;
-    console.error("recognize-equipment error:", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err instanceof ClaudeError) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+    return jsonError(err, "Recognition failed.");
   }
 }

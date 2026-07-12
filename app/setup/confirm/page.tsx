@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
+import { fetchJson } from "@/lib/safe-fetch";
 import {
   Button,
   buttonClass,
@@ -114,13 +115,11 @@ export default function ConfirmEquipmentPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/gym", {
+      await fetchJson("/api/gym", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items, photoUrls }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save.");
       sessionStorage.removeItem("gymsnap:recognized");
       router.push("/profile");
     } catch (err) {

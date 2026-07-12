@@ -52,15 +52,16 @@ async function hit(key: string, limit: number, windowSec: number): Promise<RlRes
 }
 
 /**
- * Enforce the AI-endpoint budget. Returns a 429 JSON response to return
- * immediately, or null when the request may proceed. `bucket` groups related
- * endpoints so they share a budget (e.g. all generation calls).
+ * Enforce a per-IP budget for a named bucket. Returns a 429 JSON response to
+ * return immediately, or null when the request may proceed. Fails open.
  */
-export async function enforceAiRateLimit(
+export async function enforceRateLimit(
   req: NextRequest,
-  bucket = "ai"
+  bucket: string,
+  limit: number,
+  windowSec: number
 ): Promise<NextResponse | null> {
-  const { ok } = await hit(`${bucket}:${clientIp(req)}`, AI_LIMIT, AI_WINDOW_SEC);
+  const { ok } = await hit(`${bucket}:${clientIp(req)}`, limit, windowSec);
   if (!ok) {
     return NextResponse.json(
       { error: "You're doing that a lot. Please wait a few minutes and try again." },
@@ -68,4 +69,12 @@ export async function enforceAiRateLimit(
     );
   }
   return null;
+}
+
+/** The (expensive) AI endpoints share one budget per IP. */
+export async function enforceAiRateLimit(
+  req: NextRequest,
+  bucket = "ai"
+): Promise<NextResponse | null> {
+  return enforceRateLimit(req, bucket, AI_LIMIT, AI_WINDOW_SEC);
 }

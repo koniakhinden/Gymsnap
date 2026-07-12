@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { weeks, days, exerciseEntries } from "@/lib/db/schema";
 import { getAnthropicClient, CLAUDE_MODEL, ClaudeError } from "@/lib/anthropic";
 import { enforceAiRateLimit } from "@/lib/rate-limit";
+import { jsonError } from "@/lib/api-error";
 import { weekPlanSchema, type WeekPlan } from "@/lib/validation/plan";
 import {
   getLatestProfile,
@@ -405,12 +406,10 @@ ${compactList}`;
 
     return NextResponse.json({ weekId: weekRow.id, weekNumber: nextWeekNumber, hasUnverified });
   } catch (err) {
-    console.error("plan generate error:", err);
-    // TODO(beta): surfacing raw error details to the client for debugging.
-    // Replace with a generic message before public launch.
-    const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    const message =
-      err instanceof ClaudeError ? err.message : `Failed to generate the plan — ${detail}`;
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Curated ClaudeError messages are safe to show; anything else is generalized.
+    if (err instanceof ClaudeError) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+    return jsonError(err, "Failed to generate the plan.");
   }
 }

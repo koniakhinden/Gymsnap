@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import SyncDevices from "@/components/SyncDevices";
+import { fetchJson } from "@/lib/safe-fetch";
 import {
   Button,
   Field,
@@ -104,13 +105,11 @@ export default function ProfilePage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/profile", {
+      await fetchJson("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, bodyWeight: weight }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save.");
       router.push("/plan");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

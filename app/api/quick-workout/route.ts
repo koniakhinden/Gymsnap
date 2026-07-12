@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { quickWorkouts } from "@/lib/db/schema";
 import { getAnthropicClient, CLAUDE_MODEL, ClaudeError } from "@/lib/anthropic";
 import { enforceAiRateLimit } from "@/lib/rate-limit";
+import { jsonError } from "@/lib/api-error";
 import {
   quickWorkoutSchema,
   quickWorkoutRequestSchema,
@@ -192,12 +193,9 @@ export async function POST(req: NextRequest) {
     const hydrated = await hydrateQuickWorkout(workout);
     return NextResponse.json({ id: row.id, workout: hydrated });
   } catch (err) {
-    console.error("quick-workout generate error:", err);
-    // TODO(beta): surfacing raw error details to the client for debugging.
-    // Replace with a generic message before public launch.
-    const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    const message =
-      err instanceof ClaudeError ? err.message : `Failed to build the workout — ${detail}`;
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err instanceof ClaudeError) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+    return jsonError(err, "Failed to build the workout.");
   }
 }

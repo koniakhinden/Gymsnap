@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { syncCodes } from "@/lib/db/schema";
 import { USER_ID_COOKIE, userIdCookieOptions } from "@/lib/cookies";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { eq } from "drizzle-orm";
 
 export const runtime = "nodejs";
@@ -12,6 +13,10 @@ export const runtime = "nodejs";
 // no merge, per spec.
 export async function POST(req: NextRequest) {
   try {
+    // Codes are short; throttle claims so they can't be brute-forced.
+    const limited = await enforceRateLimit(req, "sync-claim", 10, 10 * 60);
+    if (limited) return limited;
+
     const body = await req.json().catch(() => ({}));
     const code = String(body?.code ?? "")
       .trim()

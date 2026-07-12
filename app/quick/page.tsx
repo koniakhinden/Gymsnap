@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
 import ImageLightbox, { exerciseImageUrl } from "@/components/ImageLightbox";
 import { compressPhoto } from "@/lib/compress-photo";
+import { fetchJson } from "@/lib/safe-fetch";
 import {
   Button,
   Card,
@@ -204,8 +205,7 @@ export default function QuickWorkoutPage() {
 
   async function loadHistory() {
     try {
-      const res = await fetch("/api/quick-workout");
-      const data = await res.json();
+      const data = await fetchJson<{ history?: HistoryItem[] }>("/api/quick-workout");
       setHistory(data.history ?? []);
     } catch {
       // history is non-critical
@@ -310,7 +310,7 @@ export default function QuickWorkoutPage() {
     setBuildIndex(0);
     setWorkout(null);
     try {
-      const res = await fetch("/api/quick-workout", {
+      const data = await fetchJson<{ workout: Workout }>("/api/quick-workout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -322,8 +322,6 @@ export default function QuickWorkoutPage() {
           timeMin,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to build suggestions.");
       setWorkout(data.workout);
       setExpanded({});
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -338,9 +336,7 @@ export default function QuickWorkoutPage() {
   async function openHistory(item: HistoryItem) {
     setError(null);
     try {
-      const res = await fetch(`/api/quick-workout/${item.id}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load the workout.");
+      const data = await fetchJson<{ workout: Workout }>(`/api/quick-workout/${item.id}`);
       setWorkout(data.workout);
       setExpanded({});
       window.scrollTo({ top: 0, behavior: "smooth" });
