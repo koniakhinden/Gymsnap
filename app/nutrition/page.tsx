@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
-import { Button, Card, Field, Input, Select, Skeleton } from "@/components/ui";
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  SegmentControl,
+  Select,
+  Skeleton,
+} from "@/components/ui";
 import { fetchJson } from "@/lib/safe-fetch";
 import {
   computeHouseholdTargets,
@@ -13,14 +21,18 @@ import {
   type Sex,
 } from "@/lib/nutrition";
 
+type Units = "metric" | "imperial";
+
 type EaterForm = {
   id?: number;
   name: string;
   isSelf: boolean;
   sex: Sex;
   ageYears: string;
-  heightCm: string;
-  weightKg: string;
+  weight: string; // in the current unit (kg or lb)
+  heightCm: string; // metric
+  heightFt: string; // imperial
+  heightIn: string; // imperial
   activity: ActivityLevel;
   goal: NutritionGoal;
   dietary: string; // comma-separated in the form
@@ -51,14 +63,28 @@ const GOAL_LABELS: Record<NutritionGoal, string> = {
   gain: "Gain weight",
 };
 
+const UNITS_STORAGE = "gymsnap_units";
+const KG_PER_LB = 0.45359237;
+const kgToLb = (kg: number) => kg / KG_PER_LB;
+const lbToKg = (lb: number) => lb * KG_PER_LB;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+function cmToFtIn(cm: number): { ft: number; inch: number } {
+  const totalIn = cm / 2.54;
+  const ft = Math.floor(totalIn / 12);
+  return { ft, inch: Math.round(totalIn - ft * 12) };
+}
+const ftInToCm = (ft: number, inch: number) => (ft * 12 + inch) * 2.54;
+
 function newEater(isSelf = false): EaterForm {
   return {
     name: isSelf ? "You" : "",
     isSelf,
     sex: "male",
     ageYears: "30",
+    weight: "75",
     heightCm: "175",
-    weightKg: "75",
+    heightFt: "5",
+    heightIn: "9",
     activity: "moderate",
     goal: "maintain",
     dietary: "",
@@ -73,10 +99,18 @@ function toList(s: string): string[] {
     .filter(Boolean);
 }
 
-function toEaterInput(e: EaterForm): EaterInput | null {
+/** Canonical (kg/cm) EaterInput from the form, honoring the current unit. */
+function toEaterInput(e: EaterForm, units: Units): EaterInput | null {
   const ageYears = Number(e.ageYears);
-  const heightCm = Number(e.heightCm);
-  const weightKg = Number(e.weightKg);
+  let weightKg: number;
+  let heightCm: number;
+  if (units === "metric") {
+    weightKg = Number(e.weight);
+    heightCm = Number(e.heightCm);
+  } else {
+    weightKg = lbToKg(Number(e.weight));
+    heightCm = ftInToCm(Number(e.heightFt || 0), Number(e.heightIn || 0));
+  }
   if (!ageYears || !heightCm || !weightKg) return null;
   return { sex: e.sex, ageYears, heightCm, weightKg, activity: e.activity, goal: e.goal };
 }
@@ -86,6 +120,11 @@ export default function NutritionSetupPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [units, setUnits] = useState<Units>(() =>
+    typeof window !== "undefined" && window.localStorage.getItem(UNITS_STORAGE) === "imperial"
+      ? "imperial"
+      : "metric"
+  );
   const [eaters, setEaters] = useState<EaterForm[]>([newEater(true)]);
   const [settings, setSettings] = useState<SettingsForm>({
     country: "",
@@ -99,6 +138,12 @@ export default function NutritionSetupPage() {
   });
 
   useEffect(() => {
+    // `units` is initialized synchronously from localStorage, so its value here
+    // is correct for populating the form.
+    const startUnits: Units =
+      typeof window !== "undefined" && window.localStorage.getItem(UNITS_STORAGE) === "imperial"
+        ? "imperial"
+        : "metric";
     Promise.all([
       fetchJson<{ eaters: Record<string, unknown>[] }>("/api/eaters"),
       fetchJson<{ settings: Record<string, unknown> | null }>("/api/nutrition-settings"),
@@ -106,19 +151,26 @@ export default function NutritionSetupPage() {
       .then(([e, s]) => {
         if (e.eaters.length > 0) {
           setEaters(
-            e.eaters.map((r) => ({
-              id: r.id as number,
-              name: (r.name as string) ?? "",
-              isSelf: !!r.isSelf,
-              sex: r.sex as Sex,
-              ageYears: String(r.ageYears ?? ""),
-              heightCm: String(r.heightCm ?? ""),
-              weightKg: String(r.weightKg ?? ""),
-              activity: r.activity as ActivityLevel,
-              goal: r.goal as NutritionGoal,
-              dietary: ((r.dietary as string[]) ?? []).join(", "),
-              allergies: ((r.allergies as string[]) ?? []).join(", "),
-            }))
+            e.eaters.map((r) => {
+              const kg = Number(r.weightKg) || 0;
+              const cm = Number(r.heightCm) || 0;
+              const { ft, inch } = cmToFtIn(cm);
+              return {
+                id: r.id as number,
+                name: (r.name as string) ?? "",
+                isSelf: !!r.isSelf,
+                sex: r.sex as Sex,
+                ageYears: String(r.ageYears ?? ""),
+                weight: String(startUnits === "metric" ? kg : round1(kgToLb(kg))),
+                heightCm: String(Math.round(cm)),
+                heightFt: String(ft),
+                heightIn: String(inch),
+                activity: r.activity as ActivityLevel,
+                goal: r.goal as NutritionGoal,
+                dietary: ((r.dietary as string[]) ?? []).join(", "),
+                allergies: ((r.allergies as string[]) ?? []).join(", "),
+              };
+            })
           );
         }
         if (s.settings) {
@@ -139,6 +191,35 @@ export default function NutritionSetupPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  function changeUnits(next: Units) {
+    if (next === units) return;
+    setEaters((prev) =>
+      prev.map((e) => {
+        if (next === "imperial") {
+          const kg = Number(e.weight) || 0;
+          const cm = Number(e.heightCm) || 0;
+          const { ft, inch } = cmToFtIn(cm);
+          return {
+            ...e,
+            weight: kg ? String(round1(kgToLb(kg))) : "",
+            heightFt: cm ? String(ft) : "",
+            heightIn: cm ? String(inch) : "",
+          };
+        }
+        const lb = Number(e.weight) || 0;
+        const cm = ftInToCm(Number(e.heightFt || 0), Number(e.heightIn || 0));
+        return {
+          ...e,
+          weight: lb ? String(round1(lbToKg(lb))) : "",
+          heightCm: cm ? String(Math.round(cm)) : "",
+        };
+      })
+    );
+    setUnits(next);
+    setSaved(false);
+    if (typeof window !== "undefined") window.localStorage.setItem(UNITS_STORAGE, next);
+  }
+
   function patchEater(i: number, patch: Partial<EaterForm>) {
     setEaters((prev) => prev.map((e, idx) => (idx === i ? { ...e, ...patch } : e)));
     setSaved(false);
@@ -158,12 +239,10 @@ export default function NutritionSetupPage() {
 
   async function handleSave() {
     setError(null);
-    // Validate numeric fields make an eater computable.
-    for (const e of eaters) {
-      if (!toEaterInput(e)) {
-        setError("Fill age, height and weight for every person.");
-        return;
-      }
+    const canonical = eaters.map((e) => toEaterInput(e, units));
+    if (canonical.some((c) => c === null)) {
+      setError("Fill age, height and weight for every person.");
+      return;
     }
     setSaving(true);
     try {
@@ -171,14 +250,14 @@ export default function NutritionSetupPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eaters: eaters.map((e) => ({
+          eaters: eaters.map((e, i) => ({
             id: e.id,
             name: e.name,
             isSelf: e.isSelf,
             sex: e.sex,
-            ageYears: Number(e.ageYears),
-            heightCm: Number(e.heightCm),
-            weightKg: Number(e.weightKg),
+            ageYears: canonical[i]!.ageYears,
+            heightCm: round1(canonical[i]!.heightCm),
+            weightKg: round1(canonical[i]!.weightKg),
             activity: e.activity,
             goal: e.goal,
             dietary: toList(e.dietary),
@@ -210,7 +289,9 @@ export default function NutritionSetupPage() {
     }
   }
 
-  const inputs = eaters.map(toEaterInput).filter((x): x is EaterInput => x !== null);
+  const inputs = eaters
+    .map((e) => toEaterInput(e, units))
+    .filter((x): x is EaterInput => x !== null);
   const targets = inputs.length > 0 ? computeHouseholdTargets(inputs) : null;
 
   if (loading) {
@@ -238,6 +319,20 @@ export default function NutritionSetupPage() {
           {error}
         </div>
       )}
+
+      {/* Units */}
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-ink-tertiary">Units:</span>
+        <SegmentControl<Units>
+          className="flex-1 max-w-[240px]"
+          value={units}
+          onChange={changeUnits}
+          options={[
+            { value: "metric", label: "kg / cm" },
+            { value: "imperial", label: "lb / ft" },
+          ]}
+        />
+      </div>
 
       {/* Household */}
       <section className="flex flex-col gap-3">
@@ -278,22 +373,46 @@ export default function NutritionSetupPage() {
                   onChange={(ev) => patchEater(i, { ageYears: ev.target.value })}
                 />
               </Field>
-              <Field label="Height (cm)">
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  value={e.heightCm}
-                  onChange={(ev) => patchEater(i, { heightCm: ev.target.value })}
-                />
-              </Field>
-              <Field label="Weight (kg)">
+
+              {units === "metric" ? (
+                <Field label="Height (cm)">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={e.heightCm}
+                    onChange={(ev) => patchEater(i, { heightCm: ev.target.value })}
+                  />
+                </Field>
+              ) : (
+                <Field label="Height (ft / in)">
+                  <div className="flex gap-1.5">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      aria-label="feet"
+                      value={e.heightFt}
+                      onChange={(ev) => patchEater(i, { heightFt: ev.target.value })}
+                    />
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      aria-label="inches"
+                      value={e.heightIn}
+                      onChange={(ev) => patchEater(i, { heightIn: ev.target.value })}
+                    />
+                  </div>
+                </Field>
+              )}
+
+              <Field label={units === "metric" ? "Weight (kg)" : "Weight (lb)"}>
                 <Input
                   type="number"
                   inputMode="decimal"
-                  value={e.weightKg}
-                  onChange={(ev) => patchEater(i, { weightKg: ev.target.value })}
+                  value={e.weight}
+                  onChange={(ev) => patchEater(i, { weight: ev.target.value })}
                 />
               </Field>
+
               <Field label="Activity">
                 <Select
                   value={e.activity}

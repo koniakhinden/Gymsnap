@@ -50,6 +50,13 @@
       "when": 1783874879648,
       "tag": "0006_striped_taskmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783884938958,
+      "tag": "0007_bizarre_shooting_star",
+      "breakpoints": true
     }
   ]
 }
