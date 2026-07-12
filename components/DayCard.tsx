@@ -186,11 +186,10 @@ export default function DayCard({
                 </p>
                 {ex.notes && <p className="mt-0.5 text-xs text-ink-tertiary">{ex.notes}</p>}
 
-                {/* No picture for this movement → show the written how-to inline so
-                    there's always guidance (instructions live in the lightbox when
-                    an image exists). Falls back to nothing extra if we have neither. */}
-                {images.length === 0 &&
-                  (ex.exercise?.instructions?.length ?? 0) > 0 && (
+                {/* Written how-to, available inline for every movement that has
+                    instructions — even when there's also an image (the image only
+                    shows the exercise in the lightbox on tap). */}
+                {(ex.exercise?.instructions?.length ?? 0) > 0 && (
                     <details className="mt-1 text-xs">
                       <summary className="cursor-pointer list-none font-medium text-accent hover:text-accent-hover">
                         How to do it
