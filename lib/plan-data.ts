@@ -62,6 +62,28 @@ export type HydratedAlternative = {
   } | null;
 };
 
+// A hydrated warmup or stretch move: the stored fields plus any resolved library
+// exercise (image + instructions) when it referenced an id.
+export type HydratedRoutineItem = {
+  exerciseId: string | null;
+  nameOverride: string | null;
+  howTo: string;
+  duration: string;
+  exercise: {
+    id: string;
+    name: string;
+    images: string[];
+    equipment: string | null;
+    instructions: string[];
+  } | null;
+};
+
+export type HydratedStretchBlock = {
+  title: string;
+  targetMuscles: string[];
+  items: HydratedRoutineItem[];
+};
+
 export type FullExerciseEntry = {
   id: number;
   orderIndex: number;
@@ -99,6 +121,8 @@ export type FullDay = {
   } | null;
   // Minutes of cardio the user actually logged for this day (null = not logged).
   cardioActualMin: number | null;
+  // Structured warmup moves (empty for older weeks that only have warmup text).
+  warmupItems: HydratedRoutineItem[];
   exercises: FullExerciseEntry[];
   checkinStatus: "completed" | "partial" | "skipped" | null;
 };
@@ -108,6 +132,8 @@ export type FullWeek = {
   weekNumber: number;
   createdAt: string;
   days: FullDay[];
+  // 2-3 optional weekly stretch blocks (empty for older weeks).
+  stretchBlocks: HydratedStretchBlock[];
   checkin: {
     id: number;
     overallComment: string | null;
@@ -116,6 +142,41 @@ export type FullWeek = {
     lowerBackRating: number;
   } | null;
 };
+
+type StoredRoutineItem = {
+  exerciseId: string | null;
+  nameOverride: string | null;
+  howTo: string;
+  duration: string;
+};
+
+/** Attach library image/instructions to warmup or stretch items that use an id. */
+async function hydrateRoutineItems(
+  items: StoredRoutineItem[]
+): Promise<HydratedRoutineItem[]> {
+  const ids = items.map((i) => i.exerciseId).filter((id): id is string => id !== null);
+  const rows =
+    ids.length > 0
+      ? await db.select().from(exercises).where(inArray(exercises.id, ids))
+      : [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return items.map((item) => {
+    const row = item.exerciseId ? byId.get(item.exerciseId) : undefined;
+    const custom = item.exerciseId ? CUSTOM_BY_ID[item.exerciseId] : undefined;
+    const resolved = row
+      ? { id: row.id, name: row.name, images: row.images, equipment: row.equipment, instructions: row.instructions }
+      : custom
+        ? { id: custom.id, name: custom.name, images: custom.images, equipment: custom.equipment, instructions: custom.instructions }
+        : null;
+    return {
+      exerciseId: item.exerciseId,
+      nameOverride: item.nameOverride,
+      howTo: item.howTo ?? "",
+      duration: item.duration ?? "",
+      exercise: resolved,
+    };
+  });
+}
 
 async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek> {
   const dayRows = await db
@@ -252,16 +313,26 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
           }
         : null,
       cardioActualMin: day.cardioActualMin,
+      warmupItems: await hydrateRoutineItems(day.warmupItems ?? []),
       exercises: fullEntries,
       checkinStatus: dayCheckin ? dayCheckin.status : null,
     });
   }
+
+  const stretchBlocks: HydratedStretchBlock[] = await Promise.all(
+    (weekRow.stretchBlocks ?? []).map(async (b) => ({
+      title: b.title,
+      targetMuscles: b.targetMuscles ?? [],
+      items: await hydrateRoutineItems(b.items ?? []),
+    }))
+  );
 
   return {
     id: weekRow.id,
     weekNumber: weekRow.weekNumber,
     createdAt: weekRow.createdAt,
     days: fullDays,
+    stretchBlocks,
     checkin: checkin
       ? {
           id: checkin.id,

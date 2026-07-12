@@ -86,6 +86,17 @@ export const weeks = pgTable(
     userId: text("user_id").notNull(),
     weekNumber: integer("week_number").notNull(),
     createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
+    // 2-3 optional weekly stretching blocks (bonus — not part of completion).
+    stretchBlocks: jsonb("stretch_blocks")
+      .$type<
+        {
+          title: string;
+          targetMuscles: string[];
+          items: { exerciseId: string | null; nameOverride: string | null; howTo: string; duration: string }[];
+        }[]
+      >()
+      .notNull()
+      .default([]),
   },
   (t) => [index("weeks_user_id_idx").on(t.userId)]
 );
@@ -99,6 +110,11 @@ export const days = pgTable("days", {
   dayLabel: text("day_label").notNull(),
   focus: text("focus").notNull(),
   warmup: text("warmup").notNull().default(""),
+  // Structured warmup moves; the "warmup" text stays as a short summary/fallback.
+  warmupItems: jsonb("warmup_items")
+    .$type<{ exerciseId: string | null; nameOverride: string | null; howTo: string; duration: string }[]>()
+    .notNull()
+    .default([]),
   cooldown: text("cooldown").notNull().default(""),
   cardioType: text("cardio_type"),
   cardioDurationMin: integer("cardio_duration_min"),

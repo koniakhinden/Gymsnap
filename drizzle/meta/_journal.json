@@ -43,6 +43,13 @@
       "when": 1783700041142,
       "tag": "0005_dapper_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783874879648,
+      "tag": "0006_striped_taskmaster",
+      "breakpoints": true
     }
   ]
 }

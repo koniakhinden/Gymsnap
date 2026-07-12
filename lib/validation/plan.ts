@@ -10,6 +10,24 @@ export const planAlternativeSchema = z.object({
   note: z.string().default(""),
 });
 
+// A single move in a warmup or stretch routine. Like exercises it can point at a
+// library id (for an image + instructions) or be a described movement. "howTo"
+// and "duration" carry the guidance when there is no library id.
+export const routineItemSchema = z.object({
+  exerciseId: z.string().nullable(),
+  nameOverride: z.string().nullable(),
+  howTo: z.string().default(""),
+  duration: z.string().default(""),
+});
+
+// A weekly stretching block, targeting the muscles trained that week. Optional —
+// never counts toward day/week completion.
+export const stretchBlockSchema = z.object({
+  title: z.string().min(1),
+  targetMuscles: z.array(z.string()).default([]),
+  items: z.array(routineItemSchema).min(1).max(4),
+});
+
 export const planExerciseSchema = z.object({
   exerciseId: z.string().nullable(),
   nameOverride: z.string().nullable(),
@@ -35,6 +53,9 @@ export const planDaySchema = z.object({
   dayLabel: z.string().min(1),
   focus: z.string().min(1),
   warmup: z.string().default(""),
+  // Structured warmup (3-5 dynamic/mobility moves). "warmup" text is kept as a
+  // short summary / fallback and for the PDF.
+  warmupItems: z.array(routineItemSchema).max(6).default([]),
   exercises: z.array(planExerciseSchema),
   cooldown: z.string().default(""),
   cardio: planCardioSchema,
@@ -43,9 +64,13 @@ export const planDaySchema = z.object({
 export const weekPlanSchema = z.object({
   week: z.number().int().min(1),
   days: z.array(planDaySchema).min(1),
+  // 2-3 optional static-stretch blocks for the week, grouped by muscle groups.
+  stretchBlocks: z.array(stretchBlockSchema).max(3).default([]),
 });
 
 export type PlanAlternative = z.infer<typeof planAlternativeSchema>;
+export type RoutineItem = z.infer<typeof routineItemSchema>;
+export type StretchBlock = z.infer<typeof stretchBlockSchema>;
 export type PlanExercise = z.infer<typeof planExerciseSchema>;
 export type PlanDay = z.infer<typeof planDaySchema>;
 export type WeekPlan = z.infer<typeof weekPlanSchema>;

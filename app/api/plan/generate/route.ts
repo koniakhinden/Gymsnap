@@ -62,6 +62,7 @@ function repairPlanInput(raw: unknown, expectedWeek: number): unknown {
       const dayObj: Record<string, unknown> = { ...(day as Record<string, unknown>) };
       dayObj.exercises = tryParseJson(dayObj.exercises);
       dayObj.cardio = tryParseJson(dayObj.cardio);
+      dayObj.warmupItems = tryParseJson(dayObj.warmupItems);
       // "reps" and "weight" are string fields ("8-10", "3kg"), but the model
       // sometimes emits them as bare numbers. Coerce so a single formatting
       // quirk doesn't fail an otherwise-valid plan.
@@ -77,6 +78,19 @@ function repairPlanInput(raw: unknown, expectedWeek: number): unknown {
         });
       }
       return dayObj;
+    });
+  }
+
+  // Week-level stretch blocks may arrive as a JSON string, and each block's
+  // items likewise.
+  obj.stretchBlocks = tryParseJson(obj.stretchBlocks);
+  if (Array.isArray(obj.stretchBlocks)) {
+    obj.stretchBlocks = obj.stretchBlocks.map((b) => {
+      const block = tryParseJson(b);
+      if (!block || typeof block !== "object" || Array.isArray(block)) return block;
+      const blockObj: Record<string, unknown> = { ...(block as Record<string, unknown>) };
+      blockObj.items = tryParseJson(blockObj.items);
+      return blockObj;
     });
   }
 
@@ -142,15 +156,40 @@ function findInvalidExerciseIds(plan: WeekPlan, validIds: Set<string>): string[]
         }
       }
     }
+    for (const item of day.warmupItems) {
+      if (item.exerciseId && !validIds.has(item.exerciseId)) invalid.add(item.exerciseId);
+    }
+  }
+  for (const block of plan.stretchBlocks) {
+    for (const item of block.items) {
+      if (item.exerciseId && !validIds.has(item.exerciseId)) invalid.add(item.exerciseId);
+    }
   }
   return [...invalid];
+}
+
+// Drop an invalid library id on a warmup/stretch item, keeping it as a described
+// move (null id + a name so the app can still show it).
+function cleanRoutineItem<T extends { exerciseId: string | null; nameOverride: string | null }>(
+  item: T,
+  validIds: Set<string>
+): T {
+  if (item.exerciseId && !validIds.has(item.exerciseId)) {
+    return { ...item, nameOverride: item.nameOverride ?? "Movement", exerciseId: null };
+  }
+  return item;
 }
 
 function markUnverified(plan: WeekPlan, validIds: Set<string>): WeekPlan {
   return {
     ...plan,
+    stretchBlocks: plan.stretchBlocks.map((b) => ({
+      ...b,
+      items: b.items.map((it) => cleanRoutineItem(it, validIds)),
+    })),
     days: plan.days.map((day) => ({
       ...day,
+      warmupItems: day.warmupItems.map((it) => cleanRoutineItem(it, validIds)),
       exercises: day.exercises.map((ex) => {
         // Drop invalid ids on alternatives too, but keep them as described
         // movements (null id + nameOverride) rather than marking them unverified.
@@ -315,7 +354,12 @@ ${compactList}`;
     const now = new Date().toISOString();
     const [weekRow] = await db
       .insert(weeks)
-      .values({ userId, weekNumber: nextWeekNumber, createdAt: now })
+      .values({
+        userId,
+        weekNumber: nextWeekNumber,
+        createdAt: now,
+        stretchBlocks: plan.stretchBlocks,
+      })
       .returning();
 
     for (let dayIndex = 0; dayIndex < plan.days.length; dayIndex++) {
@@ -328,6 +372,7 @@ ${compactList}`;
           dayLabel: planDay.dayLabel,
           focus: planDay.focus,
           warmup: planDay.warmup,
+          warmupItems: planDay.warmupItems,
           cooldown: planDay.cooldown,
           cardioType: planDay.cardio?.type ?? null,
           cardioDurationMin: planDay.cardio?.durationMin ?? null,

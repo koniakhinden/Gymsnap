@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Printer, FileText, Trash2 } from "lucide-react";
 import ImageLightbox from "@/components/ImageLightbox";
 import DayCard from "@/components/DayCard";
+import RoutineItemRow from "@/components/RoutineItemRow";
 import type { FullWeek } from "@/lib/plan-data";
 import { Button, Card, Skeleton } from "@/components/ui";
 
@@ -237,6 +238,38 @@ export default function PlanPage() {
             />
           ))}
         </div>
+      )}
+
+      {week && week.stretchBlocks.length > 0 && (
+        <Card className="flex flex-col gap-3 p-4">
+          <div>
+            <h2 className="text-[17px] font-semibold">Stretching</h2>
+            <p className="text-xs text-ink-tertiary">
+              Optional recovery work — doesn’t affect your week’s completion.
+            </p>
+          </div>
+          {week.stretchBlocks.map((block, bi) => (
+            <div key={bi} className="border-t border-divider pt-3 first:border-t-0 first:pt-0">
+              <p className="text-sm font-medium">
+                {block.title}
+                {block.targetMuscles.length > 0 && (
+                  <span className="ml-1 font-normal text-ink-tertiary">
+                    · {block.targetMuscles.join(", ")}
+                  </span>
+                )}
+              </p>
+              <ul className="mt-1.5 flex flex-col gap-2">
+                {block.items.map((it, ii) => (
+                  <RoutineItemRow
+                    key={ii}
+                    item={it}
+                    onImageClick={(images, title) => setLightbox({ images, title })}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))}
+        </Card>
       )}
 
       {week && (

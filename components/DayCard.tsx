@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ClipboardList, Repeat2, ChevronDown } from "lucide-react";
 import { exerciseImageUrl } from "@/components/ImageLightbox";
 import ExerciseLog from "@/components/ExerciseLog";
+import RoutineItemRow from "@/components/RoutineItemRow";
 import type { FullDay, SetLog } from "@/lib/plan-data";
 import { Button, Card, Badge, Stepper, cn } from "@/components/ui";
 
@@ -118,9 +119,21 @@ export default function DayCard({
         </div>
       </div>
       <p className="mb-2 text-sm text-ink-secondary">{day.focus}</p>
-      <p className="mb-3 text-xs text-ink-tertiary">
+      <p className="mb-1 text-xs text-ink-tertiary">
         <span className="font-medium">Warmup:</span> {day.warmup}
       </p>
+      {day.warmupItems.length > 0 && (
+        <details className="no-print mb-3 text-xs" open>
+          <summary className="cursor-pointer list-none font-medium text-accent hover:text-accent-hover">
+            Warmup routine ({day.warmupItems.length})
+          </summary>
+          <ul className="mt-1.5 flex flex-col gap-2">
+            {day.warmupItems.map((it, i) => (
+              <RoutineItemRow key={i} item={it} onImageClick={onImageClick} />
+            ))}
+          </ul>
+        </details>
+      )}
 
       {isOpen && (
         <p className="no-print mb-2 text-[13px] font-medium text-accent">
