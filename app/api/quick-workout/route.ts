@@ -4,6 +4,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { db } from "@/lib/db";
 import { quickWorkouts } from "@/lib/db/schema";
 import { getAnthropicClient, CLAUDE_MODEL, ClaudeError } from "@/lib/anthropic";
+import { enforceAiRateLimit } from "@/lib/rate-limit";
 import {
   quickWorkoutSchema,
   quickWorkoutRequestSchema,
@@ -122,6 +123,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = await enforceAiRateLimit(req, "quick-workout");
+    if (limited) return limited;
+
     const userId = await getUserId();
     const body = await req.json();
     const parsed = quickWorkoutRequestSchema.parse(body);

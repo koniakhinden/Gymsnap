@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ClaudeError } from "@/lib/anthropic";
+import { enforceAiRateLimit } from "@/lib/rate-limit";
 import {
   recognizeEquipmentFromFiles,
   validateUploadedFiles,
@@ -12,6 +13,9 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = await enforceAiRateLimit(req, "recognize");
+    if (limited) return limited;
+
     const formData = await req.formData();
     const files = formData.getAll("photos").filter((f): f is File => f instanceof File);
 

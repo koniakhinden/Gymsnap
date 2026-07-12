@@ -150,125 +150,149 @@ type StoredRoutineItem = {
   duration: string;
 };
 
-/** Attach library image/instructions to warmup or stretch items that use an id. */
-async function hydrateRoutineItems(
-  items: StoredRoutineItem[]
-): Promise<HydratedRoutineItem[]> {
-  const ids = items.map((i) => i.exerciseId).filter((id): id is string => id !== null);
-  const rows =
-    ids.length > 0
-      ? await db.select().from(exercises).where(inArray(exercises.id, ids))
-      : [];
+type LibExercise = {
+  id: string;
+  name: string;
+  images: string[];
+  equipment: string | null;
+  instructions: string[];
+};
+
+/** id → library-exercise resolver from pre-fetched rows (+ GymSnap-authored
+ *  custom fallback). Lets hydration avoid per-id DB round trips. */
+function makeExerciseResolver(
+  rows: (typeof exercises.$inferSelect)[]
+): (id: string | null | undefined) => LibExercise | null {
   const byId = new Map(rows.map((r) => [r.id, r]));
+  return (id) => {
+    if (!id) return null;
+    const row = byId.get(id);
+    if (row) {
+      return {
+        id: row.id,
+        name: row.name,
+        images: row.images,
+        equipment: row.equipment,
+        instructions: row.instructions,
+      };
+    }
+    const custom = CUSTOM_BY_ID[id];
+    if (custom) {
+      return {
+        id: custom.id,
+        name: custom.name,
+        images: custom.images,
+        equipment: custom.equipment,
+        instructions: custom.instructions,
+      };
+    }
+    return null;
+  };
+}
+
+function resolveRoutineItems(
+  items: StoredRoutineItem[],
+  resolve: (id: string | null | undefined) => LibExercise | null
+): HydratedRoutineItem[] {
   return items.map((item) => {
-    const row = item.exerciseId ? byId.get(item.exerciseId) : undefined;
-    const custom = item.exerciseId ? CUSTOM_BY_ID[item.exerciseId] : undefined;
-    const resolved = row
-      ? { id: row.id, name: row.name, images: row.images, equipment: row.equipment, instructions: row.instructions }
-      : custom
-        ? { id: custom.id, name: custom.name, images: custom.images, equipment: custom.equipment, instructions: custom.instructions }
-        : null;
+    const ex = resolve(item.exerciseId);
     return {
       exerciseId: item.exerciseId,
       nameOverride: item.nameOverride,
       howTo: item.howTo ?? "",
       duration: item.duration ?? "",
-      exercise: resolved,
+      exercise: ex
+        ? {
+            id: ex.id,
+            name: ex.name,
+            images: ex.images,
+            equipment: ex.equipment,
+            instructions: ex.instructions,
+          }
+        : null,
     };
   });
 }
 
 async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek> {
-  const dayRows = await db
-    .select()
-    .from(days)
-    .where(eq(days.weekId, weekRow.id))
-    .orderBy(days.orderIndex);
-
-  const checkinRows = await db
-    .select()
-    .from(checkins)
-    .where(eq(checkins.weekId, weekRow.id));
+  // Batched fetch — a handful of queries for the whole week instead of one per
+  // day and per exercise (the old N+1, which got slow and risked timeouts).
+  const [dayRows, checkinRows] = await Promise.all([
+    db.select().from(days).where(eq(days.weekId, weekRow.id)).orderBy(days.orderIndex),
+    db.select().from(checkins).where(eq(checkins.weekId, weekRow.id)),
+  ]);
   const checkin = checkinRows[0];
+  const dayIds = dayRows.map((d) => d.id);
 
-  const dayCheckinRows = checkin
-    ? await db.select().from(dayCheckins).where(eq(dayCheckins.checkinId, checkin.id))
+  const [entryRows, dayCheckinRows] = await Promise.all([
+    dayIds.length
+      ? db
+          .select()
+          .from(exerciseEntries)
+          .where(inArray(exerciseEntries.dayId, dayIds))
+          .orderBy(exerciseEntries.orderIndex)
+      : Promise.resolve([] as (typeof exerciseEntries.$inferSelect)[]),
+    checkin
+      ? db.select().from(dayCheckins).where(eq(dayCheckins.checkinId, checkin.id))
+      : Promise.resolve([] as (typeof dayCheckins.$inferSelect)[]),
+  ]);
+
+  const entryIds = entryRows.map((e) => e.id);
+  const logRows = entryIds.length
+    ? await db
+        .select()
+        .from(exerciseSetLogs)
+        .where(inArray(exerciseSetLogs.entryId, entryIds))
+        .orderBy(exerciseSetLogs.setNumber)
     : [];
 
-  const fullDays: FullDay[] = [];
-  for (const day of dayRows) {
-    const entryRows = await db
-      .select()
-      .from(exerciseEntries)
-      .where(eq(exerciseEntries.dayId, day.id))
-      .orderBy(exerciseEntries.orderIndex);
+  // Every library id referenced anywhere in the week (main exercises,
+  // alternatives, warmup items, stretch items) → ONE query.
+  const referencedIds = new Set<string>();
+  for (const e of entryRows) {
+    if (e.exerciseId) referencedIds.add(e.exerciseId);
+    for (const a of e.alternatives ?? []) if (a.exerciseId) referencedIds.add(a.exerciseId);
+  }
+  for (const d of dayRows) {
+    for (const w of d.warmupItems ?? []) if (w.exerciseId) referencedIds.add(w.exerciseId);
+  }
+  for (const b of weekRow.stretchBlocks ?? []) {
+    for (const it of b.items ?? []) if (it.exerciseId) referencedIds.add(it.exerciseId);
+  }
+  const exerciseRows = referencedIds.size
+    ? await db.select().from(exercises).where(inArray(exercises.id, [...referencedIds]))
+    : [];
+  const resolve = makeExerciseResolver(exerciseRows);
 
-    const entryIds = entryRows.map((e) => e.id);
-    const logRows =
-      entryIds.length > 0
-        ? await db
-            .select()
-            .from(exerciseSetLogs)
-            .where(inArray(exerciseSetLogs.entryId, entryIds))
-            .orderBy(exerciseSetLogs.setNumber)
-        : [];
+  // Group logs + entries in memory.
+  const logsByEntry = new Map<number, typeof logRows>();
+  for (const l of logRows) {
+    const arr = logsByEntry.get(l.entryId) ?? [];
+    arr.push(l);
+    logsByEntry.set(l.entryId, arr);
+  }
+  const entriesByDay = new Map<number, typeof entryRows>();
+  for (const e of entryRows) {
+    const arr = entriesByDay.get(e.dayId) ?? [];
+    arr.push(e);
+    entriesByDay.set(e.dayId, arr);
+  }
 
-    const fullEntries: FullExerciseEntry[] = [];
-    for (const entry of entryRows) {
-      let exerciseRow: typeof exercises.$inferSelect | undefined;
-      if (entry.exerciseId) {
-        const rows = await db
-          .select()
-          .from(exercises)
-          .where(eq(exercises.id, entry.exerciseId));
-        exerciseRow = rows[0];
-      }
-      // Fall back to the GymSnap-authored library for custom ladder rungs that
-      // may not be in the DB yet (e.g. before a re-seed).
-      const custom = entry.exerciseId ? CUSTOM_BY_ID[entry.exerciseId] : undefined;
-      const resolvedExercise = exerciseRow
-        ? {
-            id: exerciseRow.id,
-            name: exerciseRow.name,
-            images: exerciseRow.images,
-            instructions: exerciseRow.instructions,
-            equipment: exerciseRow.equipment,
-          }
-        : custom
-          ? {
-              id: custom.id,
-              name: custom.name,
-              images: custom.images,
-              instructions: custom.instructions,
-              equipment: custom.equipment,
-            }
-          : null;
-      // Resolve library images/equipment for each stored alternative.
-      const entryAlts = entry.alternatives ?? [];
-      const altIds = entryAlts
-        .map((a) => a.exerciseId)
-        .filter((id): id is string => id !== null);
-      const altRows = altIds.length
-        ? await db.select().from(exercises).where(inArray(exercises.id, altIds))
-        : [];
-      const altById = new Map(altRows.map((r) => [r.id, r]));
-      const alternatives: HydratedAlternative[] = entryAlts.map((alt) => {
-        const row = alt.exerciseId ? altById.get(alt.exerciseId) : undefined;
-        const custom = alt.exerciseId ? CUSTOM_BY_ID[alt.exerciseId] : undefined;
-        const resolved = row
-          ? { id: row.id, name: row.name, images: row.images, equipment: row.equipment }
-          : custom
-            ? { id: custom.id, name: custom.name, images: custom.images, equipment: custom.equipment }
-            : null;
+  const fullDays: FullDay[] = dayRows.map((day) => {
+    const fullEntries: FullExerciseEntry[] = (entriesByDay.get(day.id) ?? []).map((entry) => {
+      const ex = resolve(entry.exerciseId);
+      const alternatives: HydratedAlternative[] = (entry.alternatives ?? []).map((alt) => {
+        const a = resolve(alt.exerciseId);
         return {
           exerciseId: alt.exerciseId,
           nameOverride: alt.nameOverride,
           note: alt.note ?? "",
-          exercise: resolved,
+          exercise: a
+            ? { id: a.id, name: a.name, images: a.images, equipment: a.equipment }
+            : null,
         };
       });
-
-      fullEntries.push({
+      return {
         id: entry.id,
         orderIndex: entry.orderIndex,
         exerciseId: entry.exerciseId,
@@ -279,25 +303,30 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
         restSec: entry.restSec,
         notes: entry.notes,
         unverified: entry.unverified,
-        exercise: resolvedExercise,
+        exercise: ex
+          ? {
+              id: ex.id,
+              name: ex.name,
+              images: ex.images,
+              instructions: ex.instructions,
+              equipment: ex.equipment,
+            }
+          : null,
         alternatives,
-        logs: logRows
-          .filter((l) => l.entryId === entry.id)
-          .map((l) => ({
-            id: l.id,
-            setNumber: l.setNumber,
-            weight: l.weight,
-            weightUnit: l.weightUnit,
-            reps: l.reps,
-            toFailure: l.toFailure,
-            loggedAt: l.loggedAt,
-          })),
-      });
-    }
+        logs: (logsByEntry.get(entry.id) ?? []).map((l) => ({
+          id: l.id,
+          setNumber: l.setNumber,
+          weight: l.weight,
+          weightUnit: l.weightUnit,
+          reps: l.reps,
+          toFailure: l.toFailure,
+          loggedAt: l.loggedAt,
+        })),
+      };
+    });
 
     const dayCheckin = dayCheckinRows.find((dc) => dc.dayId === day.id);
-
-    fullDays.push({
+    return {
       id: day.id,
       orderIndex: day.orderIndex,
       dayLabel: day.dayLabel,
@@ -313,19 +342,17 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
           }
         : null,
       cardioActualMin: day.cardioActualMin,
-      warmupItems: await hydrateRoutineItems(day.warmupItems ?? []),
+      warmupItems: resolveRoutineItems(day.warmupItems ?? [], resolve),
       exercises: fullEntries,
       checkinStatus: dayCheckin ? dayCheckin.status : null,
-    });
-  }
+    };
+  });
 
-  const stretchBlocks: HydratedStretchBlock[] = await Promise.all(
-    (weekRow.stretchBlocks ?? []).map(async (b) => ({
-      title: b.title,
-      targetMuscles: b.targetMuscles ?? [],
-      items: await hydrateRoutineItems(b.items ?? []),
-    }))
-  );
+  const stretchBlocks: HydratedStretchBlock[] = (weekRow.stretchBlocks ?? []).map((b) => ({
+    title: b.title,
+    targetMuscles: b.targetMuscles ?? [],
+    items: resolveRoutineItems(b.items ?? [], resolve),
+  }));
 
   return {
     id: weekRow.id,

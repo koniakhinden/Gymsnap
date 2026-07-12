@@ -15,6 +15,7 @@ import {
   SkeletonCardRow,
 } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
+import { fetchJson } from "@/lib/safe-fetch";
 
 type DayStatus = "completed" | "partial" | "skipped";
 
@@ -65,9 +66,8 @@ export default function CheckinPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/plan")
-      .then((res) => res.json())
-      .then((data: { week: FullWeek | null }) => {
+    fetchJson<{ week: FullWeek | null }>("/api/plan")
+      .then((data) => {
         setWeek(data.week);
         if (data.week) {
           const initial: Record<number, DayStatus> = {};
@@ -86,7 +86,8 @@ export default function CheckinPage() {
             setSaved(true);
           }
         }
-      });
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load."));
   }, []);
 
   async function handleSave() {
@@ -94,7 +95,7 @@ export default function CheckinPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/checkin", {
+      await fetchJson("/api/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -106,8 +107,6 @@ export default function CheckinPage() {
           days: week.days.map((d) => ({ dayId: d.id, status: statuses[d.id] ?? "completed" })),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save check-in.");
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -120,9 +119,7 @@ export default function CheckinPage() {
     setGenerating(true);
     setError(null);
     try {
-      const res = await fetch("/api/plan/generate", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate next week.");
+      await fetchJson("/api/plan/generate", { method: "POST" });
       router.push("/plan");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

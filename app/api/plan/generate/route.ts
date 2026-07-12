@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 // Weekly plan generation is a long Claude call; don't let the default
@@ -8,6 +8,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { db } from "@/lib/db";
 import { weeks, days, exerciseEntries } from "@/lib/db/schema";
 import { getAnthropicClient, CLAUDE_MODEL, ClaudeError } from "@/lib/anthropic";
+import { enforceAiRateLimit } from "@/lib/rate-limit";
 import { weekPlanSchema, type WeekPlan } from "@/lib/validation/plan";
 import {
   getLatestProfile,
@@ -282,8 +283,11 @@ async function withRetryValidation(
   return { plan, hasUnverified };
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    const limited = await enforceAiRateLimit(req, "plan-generate");
+    if (limited) return limited;
+
     const userId = await getUserId();
     const profile = await getLatestProfile(userId);
     if (!profile) {

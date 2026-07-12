@@ -7,6 +7,7 @@ import ImageLightbox from "@/components/ImageLightbox";
 import DayCard from "@/components/DayCard";
 import RoutineItemRow from "@/components/RoutineItemRow";
 import type { FullWeek } from "@/lib/plan-data";
+import { fetchJson } from "@/lib/safe-fetch";
 import { Button, Card, Skeleton } from "@/components/ui";
 
 type ExportMode = "illustrated" | "compact";
@@ -73,10 +74,15 @@ export default function PlanPage() {
     setLoadingWeek(true);
     try {
       const url = num ? `/api/plan?week=${num}` : "/api/plan";
-      const res = await fetch(url);
-      const data = await res.json();
+      const data = await fetchJson<{
+        week: FullWeek | null;
+        weightUnit?: "kg" | "lbs";
+      }>(url);
       setWeek(data.week);
       if (data.weightUnit) setWeightUnit(data.weightUnit);
+    } catch (err) {
+      setWeek(null);
+      setError(err instanceof Error ? err.message : "Failed to load your plan.");
     } finally {
       setLoadingWeek(false);
     }
@@ -107,9 +113,7 @@ export default function PlanPage() {
     setDeleting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/weeks/${week.weekNumber}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to delete the week.");
+      await fetchJson(`/api/weeks/${week.weekNumber}`, { method: "DELETE" });
       await loadWeek(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -127,9 +131,10 @@ export default function PlanPage() {
       setProgressIndex((i) => Math.min(i + 1, PROGRESS_MESSAGES.length - 1));
     }, 3000);
     try {
-      const res = await fetch("/api/plan/generate", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to build suggestions.");
+      const data = await fetchJson<{ hasUnverified?: boolean }>(
+        "/api/plan/generate",
+        { method: "POST" }
+      );
       if (data.hasUnverified) {
         setWarning(
           "Some exercises couldn't be matched to the library and were marked unverified — please review them below."
