@@ -226,3 +226,46 @@ export const syncCodes = pgTable("sync_codes", {
   expiresAt: timestamp("expires_at", { mode: "string", withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
 });
+
+// ---- Nutrition ----
+
+// Everyone the household cooks for: the user (isSelf) plus family members. Body
+// metrics + goal drive the deterministic calorie/macro engine (lib/nutrition.ts).
+export const eaters = pgTable(
+  "eaters",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    orderIndex: integer("order_index").notNull().default(0),
+    name: text("name").notNull().default(""),
+    isSelf: boolean("is_self").notNull().default(false),
+    sex: text("sex", { enum: ["male", "female", "other"] }).notNull(),
+    ageYears: integer("age_years").notNull(),
+    heightCm: real("height_cm").notNull(),
+    weightKg: real("weight_kg").notNull(),
+    activity: text("activity", {
+      enum: ["sedentary", "light", "moderate", "active", "very_active"],
+    }).notNull(),
+    goal: text("goal", { enum: ["lose", "maintain", "gain"] }).notNull(),
+    dietary: jsonb("dietary").$type<string[]>().notNull().default([]),
+    allergies: jsonb("allergies").$type<string[]>().notNull().default([]),
+    updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true }).notNull(),
+  },
+  (t) => [index("eaters_user_id_idx").on(t.userId)]
+);
+
+// Account-level food preferences + location for local availability. One row per
+// user (upserted).
+export const nutritionSettings = pgTable("nutrition_settings", {
+  userId: text("user_id").primaryKey(),
+  country: text("country").notNull().default(""),
+  region: text("region").notNull().default(""),
+  city: text("city").notNull().default(""),
+  cuisines: jsonb("cuisines").$type<string[]>().notNull().default([]),
+  likes: jsonb("likes").$type<string[]>().notNull().default([]),
+  dislikes: jsonb("dislikes").$type<string[]>().notNull().default([]),
+  budgetLevel: text("budget_level", { enum: ["low", "medium", "high"] }),
+  // Optional manual override of the computed daily calorie target (per eater).
+  calorieTargetOverride: integer("calorie_target_override"),
+  updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true }).notNull(),
+});
