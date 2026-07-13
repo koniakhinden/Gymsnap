@@ -20,8 +20,7 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
 const LANGS = [
   { code: "en-US", label: "EN" },
-  { code: "ru-RU", label: "RU" },
-  { code: "uk-UA", label: "UK" },
+  { code: "uk-UA", label: "UA" },
 ] as const;
 type LangCode = (typeof LANGS)[number]["code"];
 
