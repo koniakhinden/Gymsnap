@@ -212,6 +212,24 @@ export default function MenuPage() {
     load(null);
   }, []);
 
+  // Remember the kitchen list on this device so you never re-enter/re-photograph
+  // it — come back, add anything you missed (e.g. the freezer), and regenerate.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("gymsnap_menu_pantry");
+      if (raw) setPantry(JSON.parse(raw) as { name: string }[]);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("gymsnap_menu_pantry", JSON.stringify(pantry));
+    } catch {
+      /* ignore */
+    }
+  }, [pantry]);
+
   async function load(week: number | null) {
     setLoading(true);
     try {
@@ -375,13 +393,25 @@ export default function MenuPage() {
 
       {/* What do you have? — pantry-aware generation */}
       <Card className="flex flex-col gap-2 p-4">
-        <p className="text-sm font-semibold">
-          What&apos;s in your kitchen?{" "}
-          <span className="font-normal text-ink-tertiary">(optional)</span>
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">
+            What&apos;s in your kitchen?{" "}
+            <span className="font-normal text-ink-tertiary">(optional)</span>
+          </p>
+          {pantry.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPantry([])}
+              className="text-xs font-medium text-ink-tertiary hover:text-error"
+            >
+              Clear
+            </button>
+          )}
+        </div>
         <p className="text-xs text-ink-tertiary">
-          Snap your fridge/pantry or type items — the menu uses them first, and the shopping
-          list shows only what&apos;s missing.
+          {pantry.length > 0
+            ? "Saved on this device — add anything you missed (e.g. freezer items) and regenerate. No need to re-photograph."
+            : "Snap your fridge/pantry or type items — the menu uses them first, and the shopping list shows only what's missing."}
         </p>
         <SegmentControl<"manual" | "photo">
           value={pantrySource}
