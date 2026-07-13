@@ -6,7 +6,7 @@ import {
   Home,
   Zap,
   Camera,
-  User,
+  Utensils,
   ClipboardList,
   CircleCheck,
   type LucideIcon,
@@ -17,7 +17,7 @@ const LINKS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/quick", label: "Train", icon: Zap },
   { href: "/setup", label: "Gym", icon: Camera },
-  { href: "/profile", label: "Profile", icon: User },
+  { href: "/menu", label: "Menu", icon: Utensils },
   { href: "/plan", label: "Weekly", icon: ClipboardList },
   { href: "/checkin", label: "Check-in", icon: CircleCheck },
 ];
