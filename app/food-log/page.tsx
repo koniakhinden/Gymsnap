@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Camera } from "lucide-react";
 import { Button, Card, Field, Input, Skeleton } from "@/components/ui";
 import { fetchJson } from "@/lib/safe-fetch";
+import { compressPhoto } from "@/lib/compress-photo";
 import { computeEaterTargets, type ActivityLevel, type NutritionGoal, type Sex } from "@/lib/nutrition";
 
 type MealLog = {
@@ -48,7 +49,12 @@ export default function FoodLogPage() {
   const [name, setName] = useState("");
   const [cals, setCals] = useState("");
   const [protein, setProtein] = useState("");
+  const [fat, setFat] = useState("");
+  const [carb, setCarb] = useState("");
   const [saving, setSaving] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
+  const scanRef = useRef<HTMLInputElement>(null);
 
   // Daily calorie target from the primary eater (or manual override).
   useEffect(() => {
@@ -109,11 +115,16 @@ export default function FoodLogPage() {
           name: name.trim(),
           calories: Number(cals) || 0,
           proteinG: Number(protein) || 0,
+          fatG: Number(fat) || 0,
+          carbG: Number(carb) || 0,
         }),
       });
       setName("");
       setCals("");
       setProtein("");
+      setFat("");
+      setCarb("");
+      setScanNote(null);
       await loadDay(day);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -128,6 +139,45 @@ export default function FoodLogPage() {
       await loadDay(day);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  }
+
+  // Snap the dish or a nutrition label → prefill the form for review.
+  async function scanFood(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setScanning(true);
+    setError(null);
+    setScanNote(null);
+    try {
+      const compressed = await Promise.all(list.map((f) => compressPhoto(f)));
+      const form = new FormData();
+      for (const f of compressed) form.append("photos", f);
+      const res = await fetch("/api/meal-logs/recognize", { method: "POST", body: form });
+      const text = await res.text();
+      let data: {
+        meal?: { name: string; calories: number; proteinG: number; fatG: number; carbG: number; note: string };
+        error?: string;
+      } | null = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = null;
+      }
+      if (!res.ok) throw new Error(data?.error || `Couldn't read the photo (HTTP ${res.status}).`);
+      const m = data?.meal;
+      if (m) {
+        setName(m.name);
+        setCals(String(m.calories));
+        setProtein(String(Math.round(m.proteinG)));
+        setFat(String(Math.round(m.fatG)));
+        setCarb(String(Math.round(m.carbG)));
+        setScanNote(m.note ? `${m.note} — check and tap Add.` : "Estimated — check and tap Add.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setScanning(false);
     }
   }
 
@@ -198,19 +248,48 @@ export default function FoodLogPage() {
 
       {/* Quick add */}
       <Card className="flex flex-col gap-2 p-4">
-        <p className="text-sm font-semibold">Log a meal</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Log a meal</p>
+          <input
+            ref={scanRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={(e) => e.target.files && scanFood(e.target.files)}
+          />
+          <Button
+            variant="secondary"
+            loading={scanning}
+            onClick={() => scanRef.current?.click()}
+            className="!min-h-[36px] !px-3 !text-xs"
+          >
+            {!scanning && <Camera size={14} strokeWidth={2} />}
+            {scanning ? "Reading..." : "Scan photo"}
+          </Button>
+        </div>
+        <p className="-mt-1 text-[11px] text-ink-tertiary">
+          Snap the dish, or the packaging / nutrition label of a bar or ready meal.
+        </p>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="What did you eat?"
           className="!py-2"
         />
+        {scanNote && <p className="text-[11px] text-accent">{scanNote}</p>}
         <div className="grid grid-cols-2 gap-2">
           <Field label="Calories">
             <Input type="number" inputMode="numeric" value={cals} onChange={(e) => setCals(e.target.value)} placeholder="0" />
           </Field>
-          <Field label="Protein (g, optional)">
+          <Field label="Protein (g)">
             <Input type="number" inputMode="numeric" value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="0" />
+          </Field>
+          <Field label="Fat (g)">
+            <Input type="number" inputMode="numeric" value={fat} onChange={(e) => setFat(e.target.value)} placeholder="0" />
+          </Field>
+          <Field label="Carbs (g)">
+            <Input type="number" inputMode="numeric" value={carb} onChange={(e) => setCarb(e.target.value)} placeholder="0" />
           </Field>
         </div>
         <Button onClick={add} loading={saving} disabled={!name.trim()} className="!text-sm">
