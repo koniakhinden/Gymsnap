@@ -275,6 +275,25 @@ export const quickMeals = pgTable(
   (t) => [index("quick_meals_user_id_idx").on(t.userId)]
 );
 
+// What the user actually ate — the food diary. "day" is the user's LOCAL
+// calendar date (YYYY-MM-DD) sent by the client, so totals group correctly
+// regardless of the server timezone.
+export const mealLogs = pgTable(
+  "meal_logs",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    day: text("day").notNull(),
+    name: text("name").notNull(),
+    calories: integer("calories").notNull().default(0),
+    proteinG: real("protein_g").notNull().default(0),
+    fatG: real("fat_g").notNull().default(0),
+    carbG: real("carb_g").notNull().default(0),
+    createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
+  },
+  (t) => [index("meal_logs_user_id_idx").on(t.userId)]
+);
+
 // A generated weekly menu + consolidated shopping list. The menu itself is
 // self-contained JSON (like quick_meals), so no relational hydration is needed.
 export const menuWeeks = pgTable(

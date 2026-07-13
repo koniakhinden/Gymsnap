@@ -48,6 +48,32 @@ export default function MenuPage() {
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [logged, setLogged] = useState<Set<string>>(() => new Set());
+
+  function localDay(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  async function logMeal(key: string, m: Meal) {
+    try {
+      await fetchJson("/api/meal-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          day: localDay(),
+          name: m.name,
+          calories: m.macrosPerServing.calories,
+          proteinG: m.macrosPerServing.proteinG,
+          fatG: m.macrosPerServing.fatG,
+          carbG: m.macrosPerServing.carbG,
+        }),
+      });
+      setLogged((prev) => new Set(prev).add(key));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't log the meal.");
+    }
+  }
 
   useEffect(() => {
     load(null);
@@ -162,6 +188,19 @@ export default function MenuPage() {
                     {m.macrosPerServing.carbG}c
                   </p>
                   {m.description && <p className="mt-0.5 text-[13px] text-ink-secondary">{m.description}</p>}
+                  <div className="mt-1 flex items-center gap-3">
+                    {logged.has(`${di}-${mi}`) ? (
+                      <span className="text-xs font-medium text-success">✓ Logged today</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => logMeal(`${di}-${mi}`, m)}
+                        className="text-xs font-semibold text-accent hover:text-accent-hover"
+                      >
+                        + Ate it
+                      </button>
+                    )}
+                  </div>
                   <details className="mt-1 text-xs">
                     <summary className="cursor-pointer list-none font-medium text-accent hover:text-accent-hover">
                       Recipe
