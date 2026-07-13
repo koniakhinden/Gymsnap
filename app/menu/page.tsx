@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, Share2 } from "lucide-react";
 import { Button, Card, Skeleton, Badge } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { fetchJson } from "@/lib/safe-fetch";
@@ -53,6 +53,7 @@ export default function MenuPage() {
   const [logged, setLogged] = useState<Set<string>>(() => new Set());
   // Which shopping items the user already has — checked off, persisted per menu.
   const [have, setHave] = useState<Set<string>>(() => new Set());
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!menu) {
@@ -77,6 +78,39 @@ export default function MenuPage() {
       }
       return next;
     });
+  }
+
+  // Share only the still-needed items — via the native share sheet on a phone
+  // (Notes / Messages / WhatsApp), or clipboard on desktop.
+  async function shareList() {
+    if (!menu) return;
+    const buy = toBuy.filter((s) => s.store !== "specialty");
+    const spec = toBuy.filter((s) => s.store === "specialty");
+    const lines: string[] = [`Shopping list — Week ${menu.weekNumber}`];
+    if (buy.length) {
+      lines.push("", "To buy:");
+      for (const s of buy) lines.push(`• ${s.name}${s.amount ? ` — ${s.amount}` : ""}`);
+    }
+    if (spec.length) {
+      lines.push("", "Specialty store:");
+      for (const s of spec)
+        lines.push(`• ${s.name}${s.amount ? ` — ${s.amount}` : ""}${s.note ? ` (${s.note})` : ""}`);
+    }
+    const text = lines.join("\n");
+    const nav = navigator as Navigator & {
+      share?: (data: { title?: string; text?: string }) => Promise<void>;
+    };
+    try {
+      if (nav.share) {
+        await nav.share({ title: "Shopping list", text });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* user dismissed the share sheet — ignore */
+    }
   }
 
   function shopRow(s: ShopItem, i: number, isHave: boolean) {
@@ -286,9 +320,20 @@ export default function MenuPage() {
           {/* Shopping list — tick off what you already have. */}
           {shopItems.length > 0 && (
             <Card className="flex flex-col gap-3 p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <h2 className="text-[17px] font-semibold">Shopping list</h2>
-                <span className="text-xs text-ink-tertiary">{toBuy.length} to buy</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ink-tertiary">{toBuy.length} to buy</span>
+                  <Button
+                    variant="secondary"
+                    onClick={shareList}
+                    disabled={toBuy.length === 0}
+                    className="!min-h-[36px] !px-3 !text-xs"
+                  >
+                    <Share2 size={14} strokeWidth={2} />
+                    {copied ? "Copied" : "Share"}
+                  </Button>
+                </div>
               </div>
               <p className="-mt-2 text-[11px] text-ink-tertiary">
                 Tick items you already have to move them out of the buy list.
