@@ -71,6 +71,13 @@
       "when": 1783907514698,
       "tag": "0009_careless_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783909002587,
+      "tag": "0010_vengeful_tag",
+      "breakpoints": true
     }
   ]
 }
