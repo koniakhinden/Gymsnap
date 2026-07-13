@@ -64,7 +64,9 @@ export async function POST(req: NextRequest) {
       system: buildMenuSystemPrompt(),
       messages: [{ role: "user", content: buildMenuUserMessage({ eaters, settings }) }],
       tool: menuTool,
-      maxTokens: 16000,
+      // Kept moderate so a full week generates within the 60s function limit
+      // (a leaner, concise menu — see the prompt's conciseness rule).
+      maxTokens: 9000,
       validate: (input) => menuResultSchema.parse(input),
     });
 

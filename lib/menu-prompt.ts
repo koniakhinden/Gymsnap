@@ -15,8 +15,9 @@ Hard rules:
 5. LOCATION: build the menu from ingredients actually sold in that country/region's normal supermarket chains. For an item that isn't in mainstream stores but is available at a specialty/ethnic/European/Asian grocer, still use it if it fits their tastes — but mark it "store": "specialty" in the shopping list and add a short "note" on where to find it. Mainstream items get "store": "mainstream".
 6. Keep meals simple and repeat some ingredients across days to reduce waste and cost, honoring the budget level.
 7. Produce a CONSOLIDATED "shoppingList" for the whole week: de-duplicated, with amounts and a category, grouped logically. Assume basic staples (salt, pepper, oil, water, common spices) are on hand — don't list them.
-8. Give each meal a "slot" (breakfast/lunch/dinner/snack), clear numbered "steps", a realistic "timeMin", and a per-serving macro estimate.
-9. Respond only by calling the report_menu tool — no prose.`;
+8. Give each meal a "slot" (breakfast/lunch/dinner/snack), a realistic "timeMin", and a per-serving macro estimate.
+9. BE CONCISE so the whole week fits in one response: exactly 3 meals per day (breakfast, lunch, dinner — no snacks), each with 2-4 SHORT step lines (a few words each, not paragraphs) and a "description" of at most 8 words. Keep the shopping list tight.
+10. Respond only by calling the report_menu tool — no prose.`;
 }
 
 export function buildMenuUserMessage({
