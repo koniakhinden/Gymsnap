@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Share2 } from "lucide-react";
+import { Check, Share2, Trash2 } from "lucide-react";
 import { Button, Card, Skeleton, Badge } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { fetchJson } from "@/lib/safe-fetch";
@@ -54,6 +54,7 @@ export default function MenuPage() {
   // Which shopping items the user already has — checked off, persisted per menu.
   const [have, setHave] = useState<Set<string>>(() => new Set());
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!menu) {
@@ -67,6 +68,23 @@ export default function MenuPage() {
       setHave(new Set());
     }
   }, [menu]);
+
+  async function deleteMenu() {
+    if (!menu) return;
+    if (!window.confirm(`Delete the week ${menu.weekNumber} menu? This can't be undone.`)) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      await fetchJson(`/api/menu/${menu.weekNumber}`, { method: "DELETE" });
+      await load(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function toggleHave(name: string) {
     setHave((prev) => {
@@ -222,15 +240,28 @@ export default function MenuPage() {
 
   return (
     <main className="flex flex-col gap-4 p-4">
-      <header>
-        <h1 className="text-xl font-bold">
-          {menu ? `Week ${menu.weekNumber} menu` : "Your weekly menu"}
-        </h1>
+      <header className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-bold">
+            {menu ? `Week ${menu.weekNumber} menu` : "Your weekly menu"}
+          </h1>
+          {menu && (
+            <p className="mt-1 text-sm text-ink-secondary">
+              {menu.targets.eaters} {menu.targets.eaters === 1 ? "person" : "people"} ·{" "}
+              ~{menu.targets.perPersonCalories} kcal/person/day · {menu.result.servingsPerMeal} servings/meal
+            </p>
+          )}
+        </div>
         {menu && (
-          <p className="mt-1 text-sm text-ink-secondary">
-            {menu.targets.eaters} {menu.targets.eaters === 1 ? "person" : "people"} ·{" "}
-            ~{menu.targets.perPersonCalories} kcal/person/day · {menu.result.servingsPerMeal} servings/meal
-          </p>
+          <Button
+            variant="secondary"
+            loading={deleting}
+            onClick={deleteMenu}
+            className="!min-h-[40px] !px-3 !text-sm !text-error hover:!border-error/40"
+          >
+            {!deleting && <Trash2 size={16} strokeWidth={2} />}
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
         )}
       </header>
 
