@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera, User, Zap, ChevronRight, NotebookPen, Utensils } from "lucide-react";
+import { Camera, User, Zap, ChevronRight, NotebookPen, Utensils, CalendarDays } from "lucide-react";
 import {
   getLatestProfile,
   getLatestGymWithEquipment,
@@ -97,6 +97,19 @@ export default async function DashboardPage() {
           title="Food setup"
           subtitle="Who you cook for & tastes"
           href="/nutrition"
+          action={
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent">
+              Open
+              <ChevronRight size={16} strokeWidth={2} />
+            </span>
+          }
+        />
+        <StatusCard
+          icon={CalendarDays}
+          tone="neutral"
+          title="Weekly menu"
+          subtitle="Meals + shopping list"
+          href="/menu"
           action={
             <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent">
               Open

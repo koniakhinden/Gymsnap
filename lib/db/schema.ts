@@ -275,6 +275,21 @@ export const quickMeals = pgTable(
   (t) => [index("quick_meals_user_id_idx").on(t.userId)]
 );
 
+// A generated weekly menu + consolidated shopping list. The menu itself is
+// self-contained JSON (like quick_meals), so no relational hydration is needed.
+export const menuWeeks = pgTable(
+  "menu_weeks",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    weekNumber: integer("week_number").notNull(),
+    targets: jsonb("targets").notNull(),
+    result: jsonb("result").notNull(),
+    createdAt: timestamp("created_at", { mode: "string", withTimezone: true }).notNull(),
+  },
+  (t) => [index("menu_weeks_user_id_idx").on(t.userId)]
+);
+
 // Account-level food preferences + location for local availability. One row per
 // user (upserted).
 export const nutritionSettings = pgTable("nutrition_settings", {
