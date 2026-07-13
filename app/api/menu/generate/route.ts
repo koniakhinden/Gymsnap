@@ -19,7 +19,10 @@ import {
 } from "@/lib/validation/menu";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// 300s takes effect on Vercel Pro; Hobby still caps at 60s (this is harmless
+// there). Combined with the concise prompt + lower token cap below, generation
+// aims to finish well under a minute.
+export const maxDuration = 300;
 
 const menuTool: Anthropic.Tool = {
   name: "report_menu",
@@ -72,9 +75,8 @@ export async function POST(req: NextRequest) {
         { role: "user", content: buildMenuUserMessage({ eaters, settings, pantry: parsed.pantry }) },
       ],
       tool: menuTool,
-      // Kept moderate so a full week generates within the 60s function limit
-      // (a leaner, concise menu — see the prompt's conciseness rule).
-      maxTokens: 9000,
+      // Lower cap → faster generation, to stay under the 60s Hobby limit.
+      maxTokens: 6500,
       validate: (input) => menuResultSchema.parse(input),
     });
 

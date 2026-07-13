@@ -18,7 +18,7 @@ Hard rules:
 8. Produce a CONSOLIDATED "shoppingList" for the whole week: de-duplicated, with amounts and a category, grouped logically. Assume basic staples (salt, pepper, oil, water, common spices) are on hand — don't list them.
 9. NEXT WEEK: fill "nextWeekSuggestions" with 2-4 short, FRIENDLY, non-pushy lines informed by what was on hand — e.g. if they had a lot of one thing (potatoes), suggest using it up or buying a bit less next time; if the mix looked unbalanced or wasteful, gently suggest one or two things to buy or try. Keep it light and optional, never preachy.
 10. Give each meal a "slot" (breakfast/lunch/dinner/snack), a realistic "timeMin", and a per-serving macro estimate.
-11. BE CONCISE so the whole week fits in one response: exactly 3 meals per day (breakfast, lunch, dinner — no snacks), each with 2-4 SHORT step lines (a few words each, not paragraphs) and a "description" of at most 8 words. Keep the shopping list tight.
+11. BE VERY CONCISE so the whole week generates fast and fits one response: exactly 3 meals per day (breakfast, lunch, dinner — no snacks). Each meal: a "description" of at most 6 words, and 2-3 short step lines of about 3-6 words each (terse imperative, no paragraphs). Keep ingredient lists and the shopping list tight. Brevity matters more than flourish.
 12. Respond only by calling the report_menu tool — no prose.`;
 }
 
