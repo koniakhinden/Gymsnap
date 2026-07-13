@@ -233,10 +233,18 @@ export default function MenuPage() {
     setProgress(0);
     const timer = setInterval(() => setProgress((i) => Math.min(i + 1, PROGRESS.length - 1)), 4000);
     try {
+      // Two calls so each stays under the 60s function limit: days 1-4, then
+      // days 5-7 + the consolidated shopping list.
+      const first = await fetchJson<{ days: Day[] }>("/api/menu/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pantry, part: "days1" }),
+      });
+      setProgress(2);
       await fetchJson("/api/menu/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pantry }),
+        body: JSON.stringify({ pantry, part: "final", priorDays: first.days }),
       });
       await load(null);
     } catch (err) {

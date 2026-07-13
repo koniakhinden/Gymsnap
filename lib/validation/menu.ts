@@ -54,10 +54,21 @@ export const menuTargetsSchema = z.object({
 });
 export type MenuTargets = z.infer<typeof menuTargetsSchema>;
 
+// The week is generated in two calls so each fits the 60s function limit:
+//  - "days1": produce days 1-4 (meals only)
+//  - "final": given days 1-4, produce days 5-7 + the whole-week shopping list.
+export const menuDaysOnlySchema = z.object({
+  days: z.array(menuDaySchema).min(1).max(4),
+});
+export type MenuDaysOnly = z.infer<typeof menuDaysOnlySchema>;
+
 export const menuRequestSchema = z.object({
   note: z.string().max(500).default(""),
   // Ingredients the user already has on hand (from a fridge/pantry photo or
   // typed in). The menu is built to use these first.
   pantry: z.array(z.object({ name: z.string().min(1) })).max(100).default([]),
+  part: z.enum(["days1", "final"]).default("final"),
+  // Days already generated in the first call (sent back on the "final" call).
+  priorDays: z.array(menuDaySchema).max(4).default([]),
 });
 export type MenuRequest = z.infer<typeof menuRequestSchema>;

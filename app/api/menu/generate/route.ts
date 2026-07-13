@@ -14,19 +14,25 @@ import { computeHouseholdTargets, computeEaterTargets } from "@/lib/nutrition";
 import {
   menuRequestSchema,
   menuResultSchema,
+  menuDaysOnlySchema,
   type MenuResult,
+  type MenuDaysOnly,
   type MenuTargets,
 } from "@/lib/validation/menu";
 
 export const runtime = "nodejs";
-// 300s takes effect on Vercel Pro; Hobby still caps at 60s (this is harmless
-// there). Combined with the concise prompt + lower token cap below, generation
-// aims to finish well under a minute.
+// 300s takes effect on Vercel Pro; Hobby caps at 60s. The week is generated in
+// two parts (days 1-4, then days 5-7 + shopping list) so each part fits 60s.
 export const maxDuration = 300;
 
+const daysTool: Anthropic.Tool = {
+  name: "report_days",
+  description: "Report the requested days of the menu (meals only).",
+  input_schema: zodToJsonSchema(menuDaysOnlySchema, { $refStrategy: "none" }) as Anthropic.Tool.InputSchema,
+};
 const menuTool: Anthropic.Tool = {
   name: "report_menu",
-  description: "Report the 7-day menu and consolidated weekly shopping list.",
+  description: "Report the remaining days plus the consolidated weekly shopping list.",
   input_schema: zodToJsonSchema(menuResultSchema, { $refStrategy: "none" }) as Anthropic.Tool.InputSchema,
 };
 
@@ -46,6 +52,28 @@ export async function POST(req: NextRequest) {
         { error: "Add at least one person in Food setup first." },
         { status: 400 }
       );
+    }
+
+    // Part 1: just days 1-4 (fast). Nothing stored yet.
+    if (parsed.part === "days1") {
+      const r = await callClaudeForTool<MenuDaysOnly>({
+        system: buildMenuSystemPrompt(),
+        messages: [
+          {
+            role: "user",
+            content: buildMenuUserMessage({
+              eaters,
+              settings,
+              pantry: parsed.pantry,
+              part: "days1",
+            }),
+          },
+        ],
+        tool: daysTool,
+        maxTokens: 5000,
+        validate: (input) => menuDaysOnlySchema.parse(input),
+      });
+      return NextResponse.json({ days: r.days });
     }
 
     const inputs = eaters.map((e) => ({
@@ -69,16 +97,31 @@ export async function POST(req: NextRequest) {
       carbG: household.carbG,
     };
 
-    const result = await callClaudeForTool<MenuResult>({
+    // Part 2 (final): days 5-7 + the consolidated shopping list, given days 1-4.
+    const finalPart = await callClaudeForTool<MenuResult>({
       system: buildMenuSystemPrompt(),
       messages: [
-        { role: "user", content: buildMenuUserMessage({ eaters, settings, pantry: parsed.pantry }) },
+        {
+          role: "user",
+          content: buildMenuUserMessage({
+            eaters,
+            settings,
+            pantry: parsed.pantry,
+            part: "final",
+            priorDays: parsed.priorDays,
+          }),
+        },
       ],
       tool: menuTool,
-      // Lower cap → faster generation, to stay under the 60s Hobby limit.
-      maxTokens: 6500,
+      maxTokens: 6000,
       validate: (input) => menuResultSchema.parse(input),
     });
+
+    // Assemble the whole week: days 1-4 (from part 1) + days 5-7 (from part 2).
+    const result: MenuResult = {
+      ...finalPart,
+      days: [...parsed.priorDays, ...finalPart.days],
+    };
 
     const weekNumber = await nextMenuWeekNumber(userId);
     const now = new Date().toISOString();

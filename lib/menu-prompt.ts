@@ -22,7 +22,41 @@ Hard rules:
 12. Respond only by calling the report_menu tool — no prose.`;
 }
 
+type MenuDay = { dayLabel: string; meals: { name: string; ingredients: { name: string }[] }[] };
+
 export function buildMenuUserMessage({
+  eaters,
+  settings,
+  pantry,
+  part = "final",
+  priorDays = [],
+}: {
+  eaters: Eater[];
+  settings: Settings | null;
+  pantry: { name: string }[];
+  part?: "days1" | "final";
+  priorDays?: MenuDay[];
+}): string {
+  const task =
+    part === "days1"
+      ? `TASK: Produce ONLY days 1-4 (Monday-Thursday), as meals — fill just the "days" array (3 meals each: breakfast/lunch/dinner). Do NOT produce a title, shopping list, or suggestions in this step.`
+      : `TASK: Days 1-4 are already planned (listed at the bottom). Now produce days 5-7 (Friday-Sunday) in "days", PLUS the whole-week "title", "servingsPerMeal", a CONSOLIDATED "shoppingList" covering ALL SEVEN days (days 1-4 below + your new days 5-7), "notes", and "nextWeekSuggestions".`;
+  const priorBlock =
+    part === "final" && priorDays.length
+      ? `\n\nDAYS 1-4 ALREADY PLANNED (fold their ingredients into the shopping list):\n${priorDays
+          .map(
+            (d) =>
+              `${d.dayLabel}: ${d.meals
+                .map((m) => `${m.name} [${m.ingredients.map((i) => i.name).join(", ")}]`)
+                .join("; ")}`
+          )
+          .join("\n")}`
+      : "";
+  const base = buildMenuBody({ eaters, settings, pantry });
+  return `${task}\n\n${base}${priorBlock}`;
+}
+
+function buildMenuBody({
   eaters,
   settings,
   pantry,
@@ -58,7 +92,7 @@ export function buildMenuUserMessage({
   if (settings?.dislikes?.length) prefs.push(`Avoid: ${settings.dislikes.join(", ")}.`);
   if (settings?.budgetLevel) prefs.push(`Budget: ${settings.budgetLevel}.`);
 
-  return `Plan a 7-day menu.
+  return `Weekly menu context:
 
 SERVINGS PER MEAL: ${eaters.length || 1}
 
