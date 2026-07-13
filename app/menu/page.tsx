@@ -358,7 +358,7 @@ export default function MenuPage() {
       {!menu && (
         <Card className="p-4 text-sm text-ink-secondary">
           No menu yet. Finish your{" "}
-          <Link href="/nutrition" className="text-accent underline hover:text-accent-hover">
+          <Link href="/profile" className="text-accent underline hover:text-accent-hover">
             Food setup
           </Link>{" "}
           (who eats + tastes + location), then generate your first week.

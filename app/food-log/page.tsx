@@ -188,7 +188,7 @@ export default function FoodLogPage() {
         {target === null && (
           <p className="text-[11px] text-ink-tertiary">
             Set your details in{" "}
-            <Link href="/nutrition" className="text-accent underline hover:text-accent-hover">
+            <Link href="/profile" className="text-accent underline hover:text-accent-hover">
               Food setup
             </Link>{" "}
             to see a target.

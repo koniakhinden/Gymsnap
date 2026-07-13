@@ -69,7 +69,7 @@ export default async function DashboardPage() {
           icon={User}
           tone={profileDone ? "success" : "neutral"}
           title="Profile"
-          subtitle={profileDone ? "Saved" : "Not started"}
+          subtitle={profileDone ? "Training + food" : "You, training & food"}
           href="/profile"
           action={
             <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent">
@@ -84,19 +84,6 @@ export default async function DashboardPage() {
           title="Workout diary"
           subtitle="What you actually did"
           href="/diary"
-          action={
-            <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent">
-              Open
-              <ChevronRight size={16} strokeWidth={2} />
-            </span>
-          }
-        />
-        <StatusCard
-          icon={Utensils}
-          tone="neutral"
-          title="Food setup"
-          subtitle="Who you cook for & tastes"
-          href="/nutrition"
           action={
             <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-accent">
               Open
