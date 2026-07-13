@@ -11,7 +11,12 @@ import { getEaters, getNutritionSettings } from "@/lib/nutrition-data";
 import { nextMenuWeekNumber } from "@/lib/menu-data";
 import { buildMenuSystemPrompt, buildMenuUserMessage } from "@/lib/menu-prompt";
 import { computeHouseholdTargets, computeEaterTargets } from "@/lib/nutrition";
-import { menuResultSchema, type MenuResult, type MenuTargets } from "@/lib/validation/menu";
+import {
+  menuRequestSchema,
+  menuResultSchema,
+  type MenuResult,
+  type MenuTargets,
+} from "@/lib/validation/menu";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,6 +33,7 @@ export async function POST(req: NextRequest) {
     if (limited) return limited;
 
     const userId = await getUserId();
+    const parsed = menuRequestSchema.parse(await req.json().catch(() => ({})));
     const [eaters, settings] = await Promise.all([
       getEaters(userId),
       getNutritionSettings(userId),
@@ -62,7 +68,9 @@ export async function POST(req: NextRequest) {
 
     const result = await callClaudeForTool<MenuResult>({
       system: buildMenuSystemPrompt(),
-      messages: [{ role: "user", content: buildMenuUserMessage({ eaters, settings }) }],
+      messages: [
+        { role: "user", content: buildMenuUserMessage({ eaters, settings, pantry: parsed.pantry }) },
+      ],
       tool: menuTool,
       // Kept moderate so a full week generates within the 60s function limit
       // (a leaner, concise menu — see the prompt's conciseness rule).

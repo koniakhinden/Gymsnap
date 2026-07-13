@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Share2, Trash2 } from "lucide-react";
-import { Button, Card, Skeleton, Badge } from "@/components/ui";
+import { Check, Share2, Trash2, Camera, X, Plus } from "lucide-react";
+import { Button, Card, Skeleton, Badge, SegmentControl } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { fetchJson } from "@/lib/safe-fetch";
+import { compressPhoto } from "@/lib/compress-photo";
 
 type Macros = { calories: number; proteinG: number; fatG: number; carbG: number };
 type Meal = {
@@ -24,6 +25,7 @@ type ShopItem = {
   category: string;
   store: "mainstream" | "specialty";
   note: string;
+  have?: boolean;
 };
 type MenuResult = {
   title: string;
@@ -31,7 +33,13 @@ type MenuResult = {
   days: Day[];
   shoppingList: ShopItem[];
   notes: string[];
+  nextWeekSuggestions?: string[];
 };
+type PickedPhoto = { file: File; previewUrl: string };
+const MAX_FILES = 10;
+const MAX_SIZE_BYTES = 10 * 1024 * 1024;
+const isAcceptedFile = (f: File) =>
+  [".jpg", ".jpeg", ".png", ".heic", ".heif"].some((e) => f.name.toLowerCase().endsWith(e));
 type Targets = { eaters: number; perPersonCalories: number; householdCalories: number };
 type FullMenu = { id: number; weekNumber: number; targets: Targets; result: MenuResult };
 type Summary = { weekNumber: number; createdAt: string; title: string };
@@ -55,17 +63,29 @@ export default function MenuPage() {
   const [have, setHave] = useState<Set<string>>(() => new Set());
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // "What do you have?" pantry input for the next generation.
+  const [pantry, setPantry] = useState<{ name: string }[]>([]);
+  const [newItem, setNewItem] = useState("");
+  const [pantrySource, setPantrySource] = useState<"manual" | "photo">("manual");
+  const [photos, setPhotos] = useState<PickedPhoto[]>([]);
+  const [recognizing, setRecognizing] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!menu) {
       setHave(new Set());
       return;
     }
+    // Seed from the model's have-flags (items already on hand); a saved local
+    // choice (user's own ticks) overrides it.
+    const modelHave = new Set(
+      menu.result.shoppingList.filter((s) => s.have).map((s) => s.name)
+    );
     try {
       const raw = window.localStorage.getItem(`gymsnap_menu_have_${menu.id}`);
-      setHave(new Set(raw ? (JSON.parse(raw) as string[]) : []));
+      setHave(raw ? new Set(JSON.parse(raw) as string[]) : modelHave);
     } catch {
-      setHave(new Set());
+      setHave(modelHave);
     }
   }, [menu]);
 
@@ -213,13 +233,77 @@ export default function MenuPage() {
     setProgress(0);
     const timer = setInterval(() => setProgress((i) => Math.min(i + 1, PROGRESS.length - 1)), 4000);
     try {
-      await fetchJson("/api/menu/generate", { method: "POST" });
+      await fetchJson("/api/menu/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pantry }),
+      });
       await load(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       clearInterval(timer);
       setGenerating(false);
+    }
+  }
+
+  function addPantry() {
+    const n = newItem.trim();
+    if (!n) return;
+    setPantry((p) => [...p, { name: n }]);
+    setNewItem("");
+  }
+  function removePantry(i: number) {
+    setPantry((p) => p.filter((_, idx) => idx !== i));
+  }
+  function addPantryFiles(list: FileList | File[]) {
+    setError(null);
+    const accepted: PickedPhoto[] = [];
+    for (const file of Array.from(list)) {
+      if (!isAcceptedFile(file)) {
+        setError(`Unsupported file: ${file.name}. Use JPEG, PNG, or HEIC.`);
+        continue;
+      }
+      if (file.size > MAX_SIZE_BYTES) {
+        setError(`${file.name} is larger than 10 MB.`);
+        continue;
+      }
+      accepted.push({ file, previewUrl: URL.createObjectURL(file) });
+    }
+    setPhotos((prev) => [...prev, ...accepted].slice(0, MAX_FILES));
+  }
+  function removePantryPhoto(i: number) {
+    setPhotos((prev) => {
+      const copy = [...prev];
+      URL.revokeObjectURL(copy[i].previewUrl);
+      copy.splice(i, 1);
+      return copy;
+    });
+  }
+  async function scanPantry() {
+    if (photos.length === 0) return;
+    setRecognizing(true);
+    setError(null);
+    try {
+      const compressed = await Promise.all(photos.map((p) => compressPhoto(p.file)));
+      const form = new FormData();
+      for (const f of compressed) form.append("photos", f);
+      const res = await fetch("/api/cook/recognize", { method: "POST", body: form });
+      const text = await res.text();
+      let data: { items?: { name: string }[]; error?: string } | null = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = null;
+      }
+      if (!res.ok) throw new Error(data?.error || `Recognition failed (HTTP ${res.status}).`);
+      const found = (data?.items ?? []).map((i) => ({ name: i.name }));
+      setPantry((p) => [...p, ...found]);
+      if (found.length === 0) setError("No ingredients spotted — add some by hand.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setRecognizing(false);
     }
   }
 
@@ -280,6 +364,100 @@ export default function MenuPage() {
           (who eats + tastes + location), then generate your first week.
         </Card>
       )}
+
+      {/* What do you have? — pantry-aware generation */}
+      <Card className="flex flex-col gap-2 p-4">
+        <p className="text-sm font-semibold">
+          What&apos;s in your kitchen?{" "}
+          <span className="font-normal text-ink-tertiary">(optional)</span>
+        </p>
+        <p className="text-xs text-ink-tertiary">
+          Snap your fridge/pantry or type items — the menu uses them first, and the shopping
+          list shows only what&apos;s missing.
+        </p>
+        <SegmentControl<"manual" | "photo">
+          value={pantrySource}
+          onChange={setPantrySource}
+          options={[
+            { value: "manual", label: "Type it in" },
+            { value: "photo", label: "Photo" },
+          ]}
+        />
+
+        {pantrySource === "photo" && (
+          <div className="flex flex-col gap-2">
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => e.target.files && addPantryFiles(e.target.files)}
+            />
+            {photos.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {photos.map((p, i) => (
+                  <div key={i} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.previewUrl} alt="" className="h-14 w-14 rounded-md object-cover" />
+                    <button
+                      type="button"
+                      aria-label="Remove photo"
+                      onClick={() => removePantryPhoto(i)}
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-surface"
+                    >
+                      <X size={12} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => photoInputRef.current?.click()} className="!text-sm">
+                <Camera size={16} strokeWidth={2} /> Add photos
+              </Button>
+              {photos.length > 0 && (
+                <Button loading={recognizing} onClick={scanPantry} className="!text-sm">
+                  {recognizing ? "Scanning..." : "Scan"}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addPantry();
+              }
+            }}
+            placeholder="Add an ingredient…"
+            className="min-h-[40px] flex-1 rounded-field border border-border bg-surface px-3 text-sm outline-none focus:border-accent-border"
+          />
+          <Button variant="secondary" onClick={addPantry} aria-label="Add">
+            <Plus size={16} strokeWidth={2} />
+          </Button>
+        </div>
+        {pantry.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {pantry.map((ing, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 rounded-pill border border-border bg-surface px-2.5 py-1 text-[13px]"
+              >
+                {ing.name}
+                <button type="button" aria-label={`Remove ${ing.name}`} onClick={() => removePantry(i)}>
+                  <X size={13} strokeWidth={2.5} className="text-ink-tertiary" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Button block size="lg" loading={generating} onClick={generate}>
         {generating ? "Generating..." : `Generate menu for week ${nextWeek}`}
@@ -399,6 +577,17 @@ export default function MenuPage() {
               <ul className="list-disc space-y-1 pl-4">
                 {menu.result.notes.map((n, i) => (
                   <li key={i}>{n}</li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          {menu.result.nextWeekSuggestions && menu.result.nextWeekSuggestions.length > 0 && (
+            <Card className="flex flex-col gap-2 p-4">
+              <h2 className="text-[17px] font-semibold">Ideas for next week</h2>
+              <ul className="flex list-disc flex-col gap-1 pl-4 text-[13px] text-ink-secondary">
+                {menu.result.nextWeekSuggestions.map((s, i) => (
+                  <li key={i}>{s}</li>
                 ))}
               </ul>
             </Card>

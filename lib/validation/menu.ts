@@ -26,6 +26,9 @@ export const shoppingItemSchema = z.object({
   category: ingredientCategoryEnum,
   store: z.enum(["mainstream", "specialty"]).default("mainstream"),
   note: z.string().default(""),
+  // true = the user already has this (from their pantry photo/list), so it goes
+  // to "Already have" instead of the buy list.
+  have: z.boolean().default(false),
 });
 
 export const menuResultSchema = z.object({
@@ -34,6 +37,10 @@ export const menuResultSchema = z.object({
   days: z.array(menuDaySchema).min(1).max(7),
   shoppingList: z.array(shoppingItemSchema),
   notes: z.array(z.string()).default([]),
+  // Gentle, non-pushy ideas for next week's shop, informed by what was on hand
+  // (e.g. "you had lots of potatoes — here are ways to use them up", or a small
+  // "try X" nudge). A few friendly lines, optional.
+  nextWeekSuggestions: z.array(z.string()).default([]),
 });
 export type MenuResult = z.infer<typeof menuResultSchema>;
 
@@ -49,4 +56,8 @@ export type MenuTargets = z.infer<typeof menuTargetsSchema>;
 
 export const menuRequestSchema = z.object({
   note: z.string().max(500).default(""),
+  // Ingredients the user already has on hand (from a fridge/pantry photo or
+  // typed in). The menu is built to use these first.
+  pantry: z.array(z.object({ name: z.string().min(1) })).max(100).default([]),
 });
+export type MenuRequest = z.infer<typeof menuRequestSchema>;

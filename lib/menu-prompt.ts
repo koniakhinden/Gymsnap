@@ -14,18 +14,22 @@ Hard rules:
 4. Lean into the stated cuisines and favorite foods — it's good to feature them even if a favorite isn't locally grown (e.g. buckwheat), as long as it's realistically buyable in that region.
 5. LOCATION: build the menu from ingredients actually sold in that country/region's normal supermarket chains. For an item that isn't in mainstream stores but is available at a specialty/ethnic/European/Asian grocer, still use it if it fits their tastes — but mark it "store": "specialty" in the shopping list and add a short "note" on where to find it. Mainstream items get "store": "mainstream".
 6. Keep meals simple and repeat some ingredients across days to reduce waste and cost, honoring the budget level.
-7. Produce a CONSOLIDATED "shoppingList" for the whole week: de-duplicated, with amounts and a category, grouped logically. Assume basic staples (salt, pepper, oil, water, common spices) are on hand — don't list them.
-8. Give each meal a "slot" (breakfast/lunch/dinner/snack), a realistic "timeMin", and a per-serving macro estimate.
-9. BE CONCISE so the whole week fits in one response: exactly 3 meals per day (breakfast, lunch, dinner — no snacks), each with 2-4 SHORT step lines (a few words each, not paragraphs) and a "description" of at most 8 words. Keep the shopping list tight.
-10. Respond only by calling the report_menu tool — no prose.`;
+7. USE WHAT THEY HAVE: if an "ALREADY ON HAND" list is given, plan meals to use those items first (especially anything they have a lot of), to cut waste and cost. In the "shoppingList", still list every ingredient the week needs, but set "have": true for items already on hand (these show under "Already have") and "have": false for items they must buy.
+8. Produce a CONSOLIDATED "shoppingList" for the whole week: de-duplicated, with amounts and a category, grouped logically. Assume basic staples (salt, pepper, oil, water, common spices) are on hand — don't list them.
+9. NEXT WEEK: fill "nextWeekSuggestions" with 2-4 short, FRIENDLY, non-pushy lines informed by what was on hand — e.g. if they had a lot of one thing (potatoes), suggest using it up or buying a bit less next time; if the mix looked unbalanced or wasteful, gently suggest one or two things to buy or try. Keep it light and optional, never preachy.
+10. Give each meal a "slot" (breakfast/lunch/dinner/snack), a realistic "timeMin", and a per-serving macro estimate.
+11. BE CONCISE so the whole week fits in one response: exactly 3 meals per day (breakfast, lunch, dinner — no snacks), each with 2-4 SHORT step lines (a few words each, not paragraphs) and a "description" of at most 8 words. Keep the shopping list tight.
+12. Respond only by calling the report_menu tool — no prose.`;
 }
 
 export function buildMenuUserMessage({
   eaters,
   settings,
+  pantry,
 }: {
   eaters: Eater[];
   settings: Settings | null;
+  pantry: { name: string }[];
 }): string {
   const perEater = eaters.map((e) => {
     const t = computeEaterTargets({
@@ -67,5 +71,8 @@ ALLERGIES — never include: ${allergies.size ? [...allergies].join(", ") : "non
 LOCATION: ${loc || "not specified — assume a large North American supermarket"}
 
 PREFERENCES:
-${prefs.length ? prefs.join("\n") : "No specific preferences saved."}`;
+${prefs.length ? prefs.join("\n") : "No specific preferences saved."}
+
+ALREADY ON HAND (use these first; mark them have:true in the shopping list):
+${pantry.length ? pantry.map((p) => `- ${p.name}`).join("\n") : "(nothing photographed/listed — build a normal shop and set every shopping item have:false)"}`;
 }
