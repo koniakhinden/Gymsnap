@@ -43,18 +43,21 @@ function parseItems(text: string): string[] {
 
 // A mic button + language picker that dictates ingredient names.
 export default function VoiceInput({ onItems }: { onItems: (items: string[]) => void }) {
-  const [supported] = useState(() => getCtor() !== null);
+  // Render nothing until mounted so the server HTML (which can't detect the
+  // Speech API) matches the first client render — avoids a hydration mismatch.
+  const [mounted, setMounted] = useState(false);
   const [lang, setLang] = useState<LangCode>("en-US");
   const [listening, setListening] = useState(false);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
+    setMounted(true);
     const saved =
       typeof window !== "undefined" ? window.localStorage.getItem("gymsnap_voice_lang") : null;
     if (saved && LANGS.some((l) => l.code === saved)) setLang(saved as LangCode);
   }, []);
 
-  if (!supported) return null;
+  if (!mounted || getCtor() === null) return null;
 
   function toggle() {
     if (listening) {
