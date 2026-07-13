@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { Button, Card, Skeleton, Badge } from "@/components/ui";
+import { cn } from "@/components/ui/cn";
 import { fetchJson } from "@/lib/safe-fetch";
 
 type Macros = { calories: number; proteinG: number; fatG: number; carbG: number };
@@ -49,6 +51,65 @@ export default function MenuPage() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [logged, setLogged] = useState<Set<string>>(() => new Set());
+  // Which shopping items the user already has — checked off, persisted per menu.
+  const [have, setHave] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    if (!menu) {
+      setHave(new Set());
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(`gymsnap_menu_have_${menu.id}`);
+      setHave(new Set(raw ? (JSON.parse(raw) as string[]) : []));
+    } catch {
+      setHave(new Set());
+    }
+  }, [menu]);
+
+  function toggleHave(name: string) {
+    setHave((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      if (menu) {
+        window.localStorage.setItem(`gymsnap_menu_have_${menu.id}`, JSON.stringify([...next]));
+      }
+      return next;
+    });
+  }
+
+  function shopRow(s: ShopItem, i: number, isHave: boolean) {
+    return (
+      <li key={`${isHave}-${i}`} className="flex items-center gap-2 text-[13px]">
+        <button
+          type="button"
+          onClick={() => toggleHave(s.name)}
+          aria-label={isHave ? `Mark ${s.name} as needed` : `Mark ${s.name} as have`}
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors",
+            isHave
+              ? "border-accent bg-accent text-surface"
+              : "border-border-strong text-transparent hover:border-accent"
+          )}
+        >
+          <Check size={12} strokeWidth={3} />
+        </button>
+        <span className={cn("flex-1", isHave ? "text-ink-tertiary line-through" : "text-ink")}>
+          {s.name}
+          {!isHave && s.store === "specialty" && (
+            <Badge tone="neutral" className="ml-1.5">
+              specialty
+            </Badge>
+          )}
+          {!isHave && s.store === "specialty" && s.note && (
+            <span className="text-ink-tertiary"> — {s.note}</span>
+          )}
+        </span>
+        <span className="text-ink-tertiary">{s.amount}</span>
+      </li>
+    );
+  }
 
   function localDay(): string {
     const d = new Date();
@@ -120,8 +181,9 @@ export default function MenuPage() {
     );
   }
 
-  const mainstream = menu?.result.shoppingList.filter((s) => s.store === "mainstream") ?? [];
-  const specialty = menu?.result.shoppingList.filter((s) => s.store === "specialty") ?? [];
+  const shopItems = menu?.result.shoppingList ?? [];
+  const toBuy = shopItems.filter((s) => !have.has(s.name));
+  const haveItems = shopItems.filter((s) => have.has(s.name));
   const nextWeek = summary.length ? Math.max(...summary.map((s) => s.weekNumber)) + 1 : 1;
 
   return (
@@ -221,40 +283,35 @@ export default function MenuPage() {
             </Card>
           ))}
 
-          {/* Shopping list */}
-          {(mainstream.length > 0 || specialty.length > 0) && (
+          {/* Shopping list — tick off what you already have. */}
+          {shopItems.length > 0 && (
             <Card className="flex flex-col gap-3 p-4">
-              <h2 className="text-[17px] font-semibold">Shopping list</h2>
-              {mainstream.length > 0 && (
+              <div className="flex items-center justify-between">
+                <h2 className="text-[17px] font-semibold">Shopping list</h2>
+                <span className="text-xs text-ink-tertiary">{toBuy.length} to buy</span>
+              </div>
+              <p className="-mt-2 text-[11px] text-ink-tertiary">
+                Tick items you already have to move them out of the buy list.
+              </p>
+              <div>
+                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-tertiary">
+                  To buy
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {toBuy.length > 0 ? (
+                    toBuy.map((s, i) => shopRow(s, i, false))
+                  ) : (
+                    <li className="text-[13px] text-ink-tertiary">All checked off 🎉</li>
+                  )}
+                </ul>
+              </div>
+              {haveItems.length > 0 && (
                 <div>
                   <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-tertiary">
-                    Regular store
+                    Already have ({haveItems.length})
                   </p>
-                  <ul className="flex flex-col gap-1 text-[13px]">
-                    {mainstream.map((s, i) => (
-                      <li key={i} className="flex justify-between gap-2">
-                        <span className="text-ink">{s.name}</span>
-                        <span className="text-ink-tertiary">{s.amount}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {specialty.length > 0 && (
-                <div>
-                  <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-tertiary">
-                    Specialty / ethnic store
-                  </p>
-                  <ul className="flex flex-col gap-1 text-[13px]">
-                    {specialty.map((s, i) => (
-                      <li key={i} className="flex justify-between gap-2">
-                        <span className="text-ink">
-                          {s.name}
-                          {s.note && <span className="text-ink-tertiary"> — {s.note}</span>}
-                        </span>
-                        <span className="text-ink-tertiary">{s.amount}</span>
-                      </li>
-                    ))}
+                  <ul className="flex flex-col gap-1.5">
+                    {haveItems.map((s, i) => shopRow(s, i, true))}
                   </ul>
                 </div>
               )}
