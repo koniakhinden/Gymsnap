@@ -7,6 +7,7 @@ import { Button, Card, Skeleton, Badge, SegmentControl } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { fetchJson } from "@/lib/safe-fetch";
 import { compressPhoto } from "@/lib/compress-photo";
+import VoiceInput from "@/components/VoiceInput";
 
 type Macros = { calories: number; proteinG: number; fatG: number; carbG: number };
 type Meal = {
@@ -479,6 +480,7 @@ export default function MenuPage() {
           <Button variant="secondary" onClick={addPantry} aria-label="Add">
             <Plus size={16} strokeWidth={2} />
           </Button>
+          <VoiceInput onItems={(items) => setPantry((p) => [...p, ...items.map((name) => ({ name }))])} />
         </div>
         {pantry.length > 0 && (
           <div className="flex flex-wrap gap-1.5">

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { compressPhoto } from "@/lib/compress-photo";
 import { fetchJson } from "@/lib/safe-fetch";
+import VoiceInput from "@/components/VoiceInput";
 
 type Source = "photo" | "manual";
 type MealType = "any" | "breakfast" | "lunch" | "dinner" | "snack";
@@ -344,6 +345,7 @@ export default function CookPage() {
           <Button variant="secondary" onClick={addIngredient} aria-label="Add">
             <Plus size={16} strokeWidth={2} />
           </Button>
+          <VoiceInput onItems={(items) => setIngredients((p) => [...p, ...items.map((name) => ({ name }))])} />
         </div>
         {ingredients.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
