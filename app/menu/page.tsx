@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Share2, Trash2, Camera, X, Plus } from "lucide-react";
+import { Check, Share2, Trash2, Camera, X, Plus, ChevronDown } from "lucide-react";
 import { Button, Card, Skeleton, Badge, SegmentControl } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { fetchJson } from "@/lib/safe-fetch";
@@ -60,6 +60,15 @@ export default function MenuPage() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [logged, setLogged] = useState<Set<string>>(() => new Set());
+  const [openRecipe, setOpenRecipe] = useState<Set<string>>(() => new Set());
+  function toggleRecipe(key: string) {
+    setOpenRecipe((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
   // Which shopping items the user already has — checked off, persisted per menu.
   const [have, setHave] = useState<Set<string>>(() => new Set());
   const [copied, setCopied] = useState(false);
@@ -533,34 +542,48 @@ export default function MenuPage() {
                     {m.macrosPerServing.carbG}c
                   </p>
                   {m.description && <p className="mt-0.5 text-[13px] text-ink-secondary">{m.description}</p>}
-                  <div className="mt-1 flex items-center gap-3">
+                  {/* Ate it (left) and Recipe (right) kept far apart with large
+                      tap targets so they can't be mis-tapped. */}
+                  <div className="mt-1 flex items-center justify-between gap-3">
                     {logged.has(`${di}-${mi}`) ? (
-                      <span className="text-xs font-medium text-success">✓ Logged today</span>
+                      <span className="text-[13px] font-medium text-success">✓ Logged</span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => logMeal(`${di}-${mi}`, m)}
-                        className="text-xs font-semibold text-accent hover:text-accent-hover"
+                        className="inline-flex min-h-[36px] items-center pr-4 text-[13px] font-semibold text-accent hover:text-accent-hover"
                       >
                         + Ate it
                       </button>
                     )}
-                  </div>
-                  <details className="mt-1 text-xs">
-                    <summary className="cursor-pointer list-none font-medium text-accent hover:text-accent-hover">
+                    <button
+                      type="button"
+                      onClick={() => toggleRecipe(`${di}-${mi}`)}
+                      aria-expanded={openRecipe.has(`${di}-${mi}`)}
+                      className="inline-flex min-h-[36px] items-center gap-1 pl-4 text-[13px] font-semibold text-accent hover:text-accent-hover"
+                    >
                       Recipe
-                    </summary>
-                    {m.ingredients.length > 0 && (
-                      <p className="mt-1 text-ink-secondary">
-                        {m.ingredients.map((x) => `${x.name}${x.amount ? ` (${x.amount})` : ""}`).join(", ")}
-                      </p>
-                    )}
-                    <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-ink-secondary">
-                      {m.steps.map((s, si) => (
-                        <li key={si}>{s}</li>
-                      ))}
-                    </ol>
-                  </details>
+                      <ChevronDown
+                        size={14}
+                        strokeWidth={2.5}
+                        className={cn("transition-transform", openRecipe.has(`${di}-${mi}`) && "rotate-180")}
+                      />
+                    </button>
+                  </div>
+                  {openRecipe.has(`${di}-${mi}`) && (
+                    <div className="mt-1 text-xs">
+                      {m.ingredients.length > 0 && (
+                        <p className="text-ink-secondary">
+                          {m.ingredients.map((x) => `${x.name}${x.amount ? ` (${x.amount})` : ""}`).join(", ")}
+                        </p>
+                      )}
+                      <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-ink-secondary">
+                        {m.steps.map((s, si) => (
+                          <li key={si}>{s}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
                 </div>
               ))}
             </Card>
