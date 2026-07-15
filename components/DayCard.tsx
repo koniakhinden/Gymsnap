@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ClipboardList, Repeat2, ChevronDown } from "lucide-react";
+import { CheckCircle2, ClipboardList, Repeat2, ChevronDown, BookOpen } from "lucide-react";
 import { exerciseImageUrl } from "@/components/ImageLightbox";
 import ExerciseLog from "@/components/ExerciseLog";
 import RoutineItemRow from "@/components/RoutineItemRow";
@@ -69,6 +69,17 @@ export default function DayCard({
   const [openAlts, setOpenAlts] = useState<Set<number>>(() => new Set());
   function toggleAlts(entryId: number) {
     setOpenAlts((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) next.delete(entryId);
+      else next.add(entryId);
+      return next;
+    });
+  }
+
+  // Which exercises have their "How to do it" steps expanded (per exercise id).
+  const [openHow, setOpenHow] = useState<Set<number>>(() => new Set());
+  function toggleHow(entryId: number) {
+    setOpenHow((prev) => {
       const next = new Set(prev);
       if (next.has(entryId)) next.delete(entryId);
       else next.add(entryId);
@@ -186,67 +197,88 @@ export default function DayCard({
                 </p>
                 {ex.notes && <p className="mt-0.5 text-xs text-ink-tertiary">{ex.notes}</p>}
 
-                {/* Written how-to, available inline for every movement that has
-                    instructions — even when there's also an image (the image only
-                    shows the exercise in the lightbox on tap). */}
-                {(ex.exercise?.instructions?.length ?? 0) > 0 && (
-                    <details className="mt-1 text-xs">
-                      <summary className="cursor-pointer list-none font-medium text-accent hover:text-accent-hover">
+                {/* "How to do it" (left) and occupied-equipment backups (right)
+                    on one row with big tap targets, so the two small links don't
+                    get mis-tapped. How-to prints; alternatives are no-print. */}
+                {((ex.exercise?.instructions?.length ?? 0) > 0 ||
+                  ex.alternatives.length > 0) && (
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    {(ex.exercise?.instructions?.length ?? 0) > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleHow(ex.id)}
+                        aria-expanded={openHow.has(ex.id)}
+                        className="inline-flex min-h-[36px] items-center gap-1 pr-4 text-[13px] font-semibold text-accent transition-colors hover:text-accent-hover"
+                      >
+                        <BookOpen size={14} strokeWidth={2} />
                         How to do it
-                      </summary>
-                      <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-ink-secondary">
-                        {ex.exercise!.instructions.map((step, i) => (
-                          <li key={i}>{step}</li>
-                        ))}
-                      </ol>
-                    </details>
-                  )}
-
-                {/* Occupied-equipment backups. no-print keeps them out of the PDF. */}
-                {ex.alternatives.length > 0 && (
-                  <div className="no-print mt-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleAlts(ex.id)}
-                      aria-expanded={openAlts.has(ex.id)}
-                      className="inline-flex min-h-[32px] items-center gap-1 text-[13px] font-semibold text-accent transition-colors hover:text-accent-hover"
-                    >
-                      <Repeat2 size={14} strokeWidth={2} />
-                      If equipment is taken ({ex.alternatives.length})
-                      <ChevronDown
-                        size={14}
-                        strokeWidth={2.5}
-                        className={cn(
-                          "transition-transform",
-                          openAlts.has(ex.id) && "rotate-180",
-                        )}
-                      />
-                    </button>
-                    {openAlts.has(ex.id) && (
-                      <ul className="mt-1 flex flex-col gap-1.5 rounded-field border border-divider bg-surface-sunken/40 p-2.5">
-                        {ex.alternatives.map((alt, i) => {
-                          const altName =
-                            alt.nameOverride ?? alt.exercise?.name ?? "Alternative";
-                          const altEquip = formatEquipmentLabel(alt.exercise?.equipment);
-                          return (
-                            <li key={i} className="text-[13px]">
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="font-medium text-ink">{altName}</span>
-                                {altEquip && (
-                                  <Badge tone="neutral" className="shrink-0">
-                                    {altEquip}
-                                  </Badge>
-                                )}
-                              </div>
-                              {alt.note && (
-                                <p className="text-xs text-ink-tertiary">{alt.note}</p>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
+                        <ChevronDown
+                          size={14}
+                          strokeWidth={2.5}
+                          className={cn(
+                            "transition-transform",
+                            openHow.has(ex.id) && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    {ex.alternatives.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleAlts(ex.id)}
+                        aria-expanded={openAlts.has(ex.id)}
+                        className="no-print inline-flex min-h-[36px] items-center gap-1 pl-4 text-[13px] font-semibold text-accent transition-colors hover:text-accent-hover"
+                      >
+                        <Repeat2 size={14} strokeWidth={2} />
+                        If equipment is taken ({ex.alternatives.length})
+                        <ChevronDown
+                          size={14}
+                          strokeWidth={2.5}
+                          className={cn(
+                            "transition-transform",
+                            openAlts.has(ex.id) && "rotate-180",
+                          )}
+                        />
+                      </button>
                     )}
                   </div>
+                )}
+
+                {/* Expanded how-to steps. */}
+                {openHow.has(ex.id) && (ex.exercise?.instructions?.length ?? 0) > 0 && (
+                  <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-xs text-ink-secondary">
+                    {ex.exercise!.instructions.map((step, i) => (
+                      <li key={i}>{step}</li>
+                    ))}
+                  </ol>
+                )}
+
+                {/* Expanded equipment-taken backups. no-print keeps them out of the PDF. */}
+                {openAlts.has(ex.id) && ex.alternatives.length > 0 && (
+                  <ul className="no-print mt-1 flex flex-col gap-1.5 rounded-field border border-divider bg-surface-sunken/40 p-2.5">
+                    {ex.alternatives.map((alt, i) => {
+                      const altName =
+                        alt.nameOverride ?? alt.exercise?.name ?? "Alternative";
+                      const altEquip = formatEquipmentLabel(alt.exercise?.equipment);
+                      return (
+                        <li key={i} className="text-[13px]">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-medium text-ink">{altName}</span>
+                            {altEquip && (
+                              <Badge tone="neutral" className="shrink-0">
+                                {altEquip}
+                              </Badge>
+                            )}
+                          </div>
+                          {alt.note && (
+                            <p className="text-xs text-ink-tertiary">{alt.note}</p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
 
                 {/* Read-only: show what was logged, if we have the set data.

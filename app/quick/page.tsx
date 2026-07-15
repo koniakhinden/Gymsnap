@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, X } from "lucide-react";
+import { Camera, X, BookOpen, ChevronDown } from "lucide-react";
 import ImageLightbox, { exerciseImageUrl } from "@/components/ImageLightbox";
 import { compressPhoto } from "@/lib/compress-photo";
 import { fetchJson } from "@/lib/safe-fetch";
@@ -175,7 +175,7 @@ export default function QuickWorkoutPage() {
   const [buildIndex, setBuildIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [workout, setWorkout] = useState<Workout | null>(null);
-  const [expanded, setExpanded] = useState<Record<number, "easier" | "harder" | null>>({});
+  const [expanded, setExpanded] = useState<Record<number, "easier" | "harder" | "how" | null>>({});
   const [lightbox, setLightbox] = useState<{ images: string[]; title: string } | null>(null);
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -439,16 +439,31 @@ export default function QuickWorkoutPage() {
                       <p className="mt-1 text-xs text-ink-tertiary">{block.whyIncluded}</p>
                     )}
                     {(block.exercise?.instructions?.length ?? 0) > 0 && (
-                      <details className="mt-1 text-xs">
-                        <summary className="cursor-pointer list-none font-medium text-accent hover:text-accent-hover">
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpanded((p) => ({ ...p, [i]: open === "how" ? null : "how" }))
+                          }
+                          aria-expanded={open === "how"}
+                          className="mt-1 inline-flex min-h-[36px] items-center gap-1 text-[13px] font-semibold text-accent transition-colors hover:text-accent-hover"
+                        >
+                          <BookOpen size={14} strokeWidth={2} />
                           How to do it
-                        </summary>
-                        <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-ink-secondary">
-                          {block.exercise!.instructions.map((step, si) => (
-                            <li key={si}>{step}</li>
-                          ))}
-                        </ol>
-                      </details>
+                          <ChevronDown
+                            size={14}
+                            strokeWidth={2.5}
+                            className={cn("transition-transform", open === "how" && "rotate-180")}
+                          />
+                        </button>
+                        {open === "how" && (
+                          <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-xs text-ink-secondary">
+                            {block.exercise!.instructions.map((step, si) => (
+                              <li key={si}>{step}</li>
+                            ))}
+                          </ol>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
