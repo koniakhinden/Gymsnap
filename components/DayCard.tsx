@@ -157,11 +157,19 @@ export default function DayCard({
           const name = ex.nameOverride ?? ex.exercise?.name ?? "Exercise";
           const images = ex.exercise?.images ?? [];
           const equipmentLabel = formatEquipmentLabel(ex.exercise?.equipment);
+          const isDumbbell = ex.exercise?.equipment === "dumbbell";
           const isLogged = savedIds.has(ex.id);
           return (
             <div
               key={ex.id}
-              className="exercise-row flex gap-3 border-t border-divider pt-2 first:border-t-0 first:pt-0"
+              className={cn(
+                "exercise-row flex gap-3 border-t border-divider pt-2 first:border-t-0 first:pt-0",
+                // Logged exercises get a green left stripe in the read view so a
+                // selectively-completed day is easy to scan at a glance.
+                !isOpen &&
+                  isLogged &&
+                  "rounded-l-sm border-l-[3px] border-l-success pl-2.5",
+              )}
             >
               {images.length > 0 && (
                 <button
@@ -182,9 +190,6 @@ export default function DayCard({
                   <p className="flex flex-wrap items-center gap-1.5 font-medium">
                     {name}
                     {ex.unverified && <Badge tone="warning">Unverified</Badge>}
-                    {!isOpen && isLogged && (
-                      <CheckCircle2 size={15} strokeWidth={2.5} className="text-success" />
-                    )}
                   </p>
                   {equipmentLabel && (
                     <Badge tone="beta" className="shrink-0">
@@ -193,7 +198,8 @@ export default function DayCard({
                   )}
                 </div>
                 <p className="text-ink-secondary">
-                  {ex.sets} sets x {ex.reps} · {ex.weight || "bodyweight"} · rest {ex.restSec}s
+                  {ex.sets} sets x {ex.reps} · {ex.weight || "bodyweight"}
+                  {isDumbbell && ex.weight ? " per dumbbell" : ""} · rest {ex.restSec}s
                 </p>
                 {ex.notes && <p className="mt-0.5 text-xs text-ink-tertiary">{ex.notes}</p>}
 
@@ -297,6 +303,7 @@ export default function DayCard({
                     plannedReps={ex.reps}
                     plannedWeight={ex.weight}
                     weightUnit={weightUnit}
+                    perDumbbell={isDumbbell}
                     initialLogs={ex.logs}
                     onSavedChange={(saved) => markSaved(ex.id, saved)}
                   />

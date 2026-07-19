@@ -42,6 +42,7 @@ export default function ExerciseLog({
   plannedReps,
   plannedWeight,
   weightUnit,
+  perDumbbell = false,
   initialLogs,
   embedded = false,
   onSavedChange,
@@ -51,6 +52,9 @@ export default function ExerciseLog({
   plannedReps: string;
   plannedWeight: string;
   weightUnit: Unit;
+  // Dumbbell exercise: the logged weight is the load of a single dumbbell, so
+  // label it to remove any "both hands combined?" ambiguity.
+  perDumbbell?: boolean;
   initialLogs: SetLog[];
   // Embedded in a day's "Fill workout" mode: always open, no self-toggle/close,
   // and reports its saved state up so the day can show X/Y progress.
@@ -147,7 +151,10 @@ export default function ExerciseLog({
   return (
     <div className="no-print mt-2 flex flex-col gap-1.5 rounded-field border border-divider bg-surface-sunken/40 p-2.5">
       <div className="flex items-center gap-1.5 pl-6 text-[11px] font-medium uppercase tracking-wide text-ink-tertiary">
-        <span className="min-w-[112px]">Weight, {weightUnit}</span>
+        <span className="min-w-[112px]">
+          Weight, {weightUnit}
+          {perDumbbell && <span className="normal-case"> · per dumbbell</span>}
+        </span>
         <span className="min-w-[112px]">Reps</span>
       </div>
 

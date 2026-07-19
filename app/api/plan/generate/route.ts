@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
-// Weekly plan generation is a long Claude call; don't let the default
-// function duration limit cut it off.
-export const maxDuration = 60;
+// Weekly plan generation is a long Claude call and may run several sequential
+// correction passes (invalid ids, balance guard), so 60s is not enough for
+// later weeks with more history — it was hitting FUNCTION_INVOCATION_TIMEOUT.
+// Match the menu generator's ceiling.
+export const maxDuration = 300;
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { db } from "@/lib/db";
 import { weeks, days, exerciseEntries } from "@/lib/db/schema";
