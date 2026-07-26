@@ -63,6 +63,9 @@ export default function FoodLogPage() {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
+  // Optional user note sent with the photo to help identify tricky dishes
+  // (stuffed/wrapped/mixed food where the filling is hidden, e.g. cabbage rolls).
+  const [scanHint, setScanHint] = useState("");
   const scanRef = useRef<HTMLInputElement>(null);
 
   // Daily calorie target from the primary eater (or manual override).
@@ -134,6 +137,7 @@ export default function FoodLogPage() {
       setFat("");
       setCarb("");
       setScanNote(null);
+      setScanHint("");
       await loadDay(day);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -162,6 +166,7 @@ export default function FoodLogPage() {
       const compressed = await Promise.all(list.map((f) => compressPhoto(f)));
       const form = new FormData();
       for (const f of compressed) form.append("photos", f);
+      if (scanHint.trim()) form.append("hint", scanHint.trim());
       const res = await fetch("/api/meal-logs/recognize", { method: "POST", body: form });
       const text = await res.text();
       let data: {
@@ -306,7 +311,15 @@ export default function FoodLogPage() {
         </div>
         <p className="-mt-1 text-[11px] text-ink-tertiary">
           Snap the dish, or the packaging / nutrition label of a bar or ready meal.
+          For stuffed or mixed dishes, add a note below first so the estimate is closer.
         </p>
+        <Input
+          value={scanHint}
+          onChange={(e) => setScanHint(e.target.value)}
+          placeholder="Note for the photo (optional) — e.g. cabbage rolls, pork & rice, 3 pcs"
+          className="!py-2"
+          aria-label="Note for the photo"
+        />
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}

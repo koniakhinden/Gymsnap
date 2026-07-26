@@ -13,6 +13,7 @@ Rules:
 - If there is NO label (a plain plate of food), ESTIMATE calories and macros for a normal portion of what you see. Say "estimated" in "note".
 - "name" should be short and specific (e.g. "Quest protein bar, cookies & cream", "Chicken rice bowl").
 - calories is a whole number; proteinG/fatG/carbG are grams (numbers). Be reasonable, not precise — these are estimates.
+- If the user adds a NOTE describing the dish, TRUST it and use it to identify the food and refine the estimate. The user can see what's inside when you can't — this matters most for mixed / stuffed / wrapped dishes where the filling is hidden (e.g. cabbage rolls, dumplings, pies, casseroles, sandwiches). Use their stated ingredients, portion, and count.
 - If you truly cannot tell what the food is, still give your best single guess.
 
 Respond only by calling the report_meal tool.`;
@@ -25,7 +26,10 @@ const mealTool: Anthropic.Tool = {
   }) as Anthropic.Tool.InputSchema,
 };
 
-export async function recognizeMealFromFiles(files: File[]): Promise<RecognizedMeal> {
+export async function recognizeMealFromFiles(
+  files: File[],
+  hint?: string
+): Promise<RecognizedMeal> {
   const imageBlocks: Anthropic.ImageBlockParam[] = [];
   for (const file of files) {
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -33,9 +37,13 @@ export async function recognizeMealFromFiles(files: File[]): Promise<RecognizedM
     imageBlocks.push(toClaudeImageBlock(compressed));
   }
 
+  const note = hint?.trim();
+  const text = note
+    ? `Here's what I ate. Report the meal and its nutrition as instructed. My note about this dish: "${note}"`
+    : "Here's what I ate. Report the meal and its nutrition as instructed.";
   const content: Anthropic.ContentBlockParam[] = [
     ...imageBlocks,
-    { type: "text", text: "Here's what I ate. Report the meal and its nutrition as instructed." },
+    { type: "text", text },
   ];
 
   return callClaudeForTool<RecognizedMeal>({

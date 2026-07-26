@@ -15,13 +15,15 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const files = formData.getAll("photos").filter((f): f is File => f instanceof File);
+    const hintRaw = formData.get("hint");
+    const hint = typeof hintRaw === "string" ? hintRaw.slice(0, 500) : undefined;
 
     const validationError = validateUploadedFiles(files);
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const meal = await recognizeMealFromFiles(files);
+    const meal = await recognizeMealFromFiles(files, hint);
     return NextResponse.json({ meal });
   } catch (err) {
     if (err instanceof ClaudeError) {
