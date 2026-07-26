@@ -3,10 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Plus, X, Camera, Utensils, ChevronRight as ChevronRightIcon } from "lucide-react";
-import { Button, Card, Field, Input, Skeleton, buttonClass } from "@/components/ui";
+import { Button, Card, Field, Input, Skeleton, SegmentControl, buttonClass } from "@/components/ui";
 import { fetchJson } from "@/lib/safe-fetch";
 import { compressPhoto } from "@/lib/compress-photo";
 import { computeEaterTargets, type ActivityLevel, type NutritionGoal, type Sex } from "@/lib/nutrition";
+import FoodReport from "@/components/FoodReport";
+
+type View = "day" | "week" | "month";
+const VIEW_OPTIONS: { value: View; label: string }[] = [
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+];
 
 type MealLog = {
   id: number;
@@ -40,6 +48,7 @@ function prettyDay(key: string): string {
 }
 
 export default function FoodLogPage() {
+  const [view, setView] = useState<View>("day");
   const [day, setDay] = useState(() => dayKey(new Date()));
   const [logs, setLogs] = useState<MealLog[]>([]);
   const [totals, setTotals] = useState<Totals>({ calories: 0, proteinG: 0, fatG: 0, carbG: 0 });
@@ -188,27 +197,31 @@ export default function FoodLogPage() {
     <main className="flex flex-col gap-4 p-4">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Food log</h1>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="secondary"
-            onClick={() => setDay((d) => addDays(d, -1))}
-            aria-label="Previous day"
-            className="!min-h-[40px] !px-2.5"
-          >
-            <ChevronLeft size={16} strokeWidth={2} />
-          </Button>
-          <span className="min-w-[84px] text-center text-sm font-medium">{prettyDay(day)}</span>
-          <Button
-            variant="secondary"
-            onClick={() => setDay((d) => addDays(d, 1))}
-            disabled={day >= dayKey(new Date())}
-            aria-label="Next day"
-            className="!min-h-[40px] !px-2.5"
-          >
-            <ChevronRight size={16} strokeWidth={2} />
-          </Button>
-        </div>
+        {view === "day" && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="secondary"
+              onClick={() => setDay((d) => addDays(d, -1))}
+              aria-label="Previous day"
+              className="!min-h-[40px] !px-2.5"
+            >
+              <ChevronLeft size={16} strokeWidth={2} />
+            </Button>
+            <span className="min-w-[84px] text-center text-sm font-medium">{prettyDay(day)}</span>
+            <Button
+              variant="secondary"
+              onClick={() => setDay((d) => addDays(d, 1))}
+              disabled={day >= dayKey(new Date())}
+              aria-label="Next day"
+              className="!min-h-[40px] !px-2.5"
+            >
+              <ChevronRight size={16} strokeWidth={2} />
+            </Button>
+          </div>
+        )}
       </header>
+
+      <SegmentControl options={VIEW_OPTIONS} value={view} onChange={setView} />
 
       {error && (
         <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">{error}</div>
@@ -226,6 +239,17 @@ export default function FoodLogPage() {
         <ChevronRightIcon size={16} strokeWidth={2} />
       </Link>
 
+      {view !== "day" ? (
+        <FoodReport
+          mode={view}
+          target={target}
+          onOpenDay={(d) => {
+            setDay(d);
+            setView("day");
+          }}
+        />
+      ) : (
+        <>
       {/* Total vs target */}
       <Card className="flex flex-col gap-2 p-4">
         <div className="flex items-baseline justify-between">
@@ -336,6 +360,8 @@ export default function FoodLogPage() {
             </div>
           ))}
         </Card>
+      )}
+        </>
       )}
     </main>
   );
