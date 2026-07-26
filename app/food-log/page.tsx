@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus, X, Camera } from "lucide-react";
-import { Button, Card, Field, Input, Skeleton } from "@/components/ui";
+import { ChevronLeft, ChevronRight, Plus, X, Camera, Utensils, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { Button, Card, Field, Input, Skeleton, buttonClass } from "@/components/ui";
 import { fetchJson } from "@/lib/safe-fetch";
 import { compressPhoto } from "@/lib/compress-photo";
 import { computeEaterTargets, type ActivityLevel, type NutritionGoal, type Sex } from "@/lib/nutrition";
@@ -213,6 +213,18 @@ export default function FoodLogPage() {
       {error && (
         <div className="rounded-field border border-error/20 bg-error-bg p-3 text-sm text-error">{error}</div>
       )}
+
+      {/* Snap groceries → a few healthy dishes to cook (no weekly menu). */}
+      <Link
+        href="/cook"
+        className={buttonClass({ variant: "secondary", block: true, className: "justify-between" })}
+      >
+        <span className="inline-flex items-center gap-2">
+          <Utensils size={16} strokeWidth={2} />
+          What can I cook?
+        </span>
+        <ChevronRightIcon size={16} strokeWidth={2} />
+      </Link>
 
       {/* Total vs target */}
       <Card className="flex flex-col gap-2 p-4">

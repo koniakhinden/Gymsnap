@@ -59,6 +59,7 @@ export type HydratedAlternative = {
     name: string;
     images: string[];
     equipment: string | null;
+    instructions: string[];
   } | null;
 };
 
@@ -95,6 +96,9 @@ export type FullExerciseEntry = {
   restSec: number;
   notes: string | null;
   unverified: boolean;
+  // Which alternative the user swapped to (index into `alternatives`), or null
+  // for the original prescribed exercise. The UI renders the active variant.
+  activeAltIndex: number | null;
   exercise: {
     id: string;
     name: string;
@@ -288,7 +292,13 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
           nameOverride: alt.nameOverride,
           note: alt.note ?? "",
           exercise: a
-            ? { id: a.id, name: a.name, images: a.images, equipment: a.equipment }
+            ? {
+                id: a.id,
+                name: a.name,
+                images: a.images,
+                equipment: a.equipment,
+                instructions: a.instructions,
+              }
             : null,
         };
       });
@@ -303,6 +313,7 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
         restSec: entry.restSec,
         notes: entry.notes,
         unverified: entry.unverified,
+        activeAltIndex: entry.activeAltIndex ?? null,
         exercise: ex
           ? {
               id: ex.id,
@@ -476,6 +487,8 @@ export async function getDiaryEntries(userId: string): Promise<DiaryEntry[]> {
       entryId: exerciseEntries.id,
       nameOverride: exerciseEntries.nameOverride,
       exerciseName: exercises.name,
+      alternatives: exerciseEntries.alternatives,
+      activeAltIndex: exerciseEntries.activeAltIndex,
       dayLabel: days.dayLabel,
       weekNumber: weeks.weekNumber,
     })
@@ -487,16 +500,40 @@ export async function getDiaryEntries(userId: string): Promise<DiaryEntry[]> {
     .where(eq(exerciseSetLogs.userId, userId))
     .orderBy(desc(exerciseSetLogs.loggedAt));
 
+  // If any logged entry was swapped to a library alternative, resolve those
+  // alternative exercise names in one query so the diary shows what was done.
+  const swappedAltIds = new Set<string>();
+  for (const r of rows) {
+    const alt =
+      r.activeAltIndex != null ? r.alternatives?.[r.activeAltIndex] : undefined;
+    if (alt && !alt.nameOverride && alt.exerciseId) swappedAltIds.add(alt.exerciseId);
+  }
+  const altNameById = new Map<string, string>();
+  if (swappedAltIds.size) {
+    const altRows = await db
+      .select({ id: exercises.id, name: exercises.name })
+      .from(exercises)
+      .where(inArray(exercises.id, [...swappedAltIds]));
+    for (const a of altRows) altNameById.set(a.id, a.name);
+  }
+
   // Group by exact instant + entry (a save writes all sets with one loggedAt).
   const map = new Map<string, DiaryEntry>();
   for (const r of rows) {
     const key = `${r.log.loggedAt}__${r.entryId}`;
     let entry = map.get(key);
     if (!entry) {
+      // Prefer the swapped-in alternative's name when the entry was swapped.
+      const alt =
+        r.activeAltIndex != null ? r.alternatives?.[r.activeAltIndex] : undefined;
+      const swappedName = alt
+        ? alt.nameOverride ??
+          (alt.exerciseId ? altNameById.get(alt.exerciseId) : undefined)
+        : undefined;
       entry = {
         loggedAt: r.log.loggedAt,
         entryId: r.entryId,
-        name: r.nameOverride ?? r.exerciseName ?? "Exercise",
+        name: swappedName ?? r.nameOverride ?? r.exerciseName ?? "Exercise",
         weekNumber: r.weekNumber,
         dayLabel: r.dayLabel,
         sets: [],

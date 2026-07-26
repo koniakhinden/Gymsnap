@@ -1,0 +1,1 @@
+ALTER TABLE "exercise_entries" ADD COLUMN "active_alt_index" integer;

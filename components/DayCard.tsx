@@ -1,11 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ClipboardList, Repeat2, ChevronDown, BookOpen } from "lucide-react";
+import {
+  CheckCircle2,
+  ClipboardList,
+  Repeat2,
+  ChevronDown,
+  BookOpen,
+  Check,
+  RotateCcw,
+} from "lucide-react";
 import { exerciseImageUrl } from "@/components/ImageLightbox";
 import ExerciseLog from "@/components/ExerciseLog";
 import RoutineItemRow from "@/components/RoutineItemRow";
 import type { FullDay, SetLog } from "@/lib/plan-data";
+import { fetchJson } from "@/lib/safe-fetch";
 import { Button, Card, Badge, Stepper, cn } from "@/components/ui";
 
 const EQUIPMENT_LABELS: Record<string, string> = {
@@ -96,6 +105,35 @@ export default function DayCard({
     });
   }
 
+  // Per-entry chosen alternative (index into that entry's `alternatives`), or
+  // null for the original exercise. Seeded from the DB so a swap persists across
+  // reloads. Logs stay attached to the entry, so swapping keeps the diary intact.
+  const [swapIdx, setSwapIdx] = useState<Record<number, number | null>>(() =>
+    Object.fromEntries(day.exercises.map((e) => [e.id, e.activeAltIndex ?? null]))
+  );
+  const [swappingId, setSwappingId] = useState<number | null>(null);
+  const [swapErrorId, setSwapErrorId] = useState<number | null>(null);
+
+  async function swapTo(entryId: number, altIndex: number | null) {
+    const prev = swapIdx[entryId] ?? null;
+    if (prev === altIndex) return;
+    setSwappingId(entryId);
+    setSwapErrorId(null);
+    setSwapIdx((s) => ({ ...s, [entryId]: altIndex })); // optimistic
+    try {
+      await fetchJson(`/api/entries/${entryId}/swap`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ altIndex }),
+      });
+    } catch {
+      setSwapIdx((s) => ({ ...s, [entryId]: prev })); // roll back on failure
+      setSwapErrorId(entryId);
+    } finally {
+      setSwappingId(null);
+    }
+  }
+
   // Auto-scroll the day into view when it becomes the open (fill) day.
   useEffect(() => {
     if (isOpen) {
@@ -154,10 +192,28 @@ export default function DayCard({
 
       <div className="flex flex-col gap-2">
         {day.exercises.map((ex) => {
-          const name = ex.nameOverride ?? ex.exercise?.name ?? "Exercise";
-          const images = ex.exercise?.images ?? [];
-          const equipmentLabel = formatEquipmentLabel(ex.exercise?.equipment);
-          const isDumbbell = ex.exercise?.equipment === "dumbbell";
+          // Resolve the active variant: the swapped-in alternative if one is
+          // chosen, otherwise the originally prescribed exercise. The sets/reps/
+          // weight prescription always comes from the entry itself.
+          const activeIdx = swapIdx[ex.id] ?? null;
+          const activeAlt =
+            activeIdx != null ? ex.alternatives[activeIdx] : undefined;
+          const isSwapped = activeAlt != null;
+          const originalName = ex.nameOverride ?? ex.exercise?.name ?? "Exercise";
+          const name = activeAlt
+            ? activeAlt.nameOverride ?? activeAlt.exercise?.name ?? "Alternative"
+            : originalName;
+          const images =
+            (activeAlt ? activeAlt.exercise?.images : ex.exercise?.images) ?? [];
+          const equipment = activeAlt
+            ? activeAlt.exercise?.equipment
+            : ex.exercise?.equipment;
+          const equipmentLabel = formatEquipmentLabel(equipment);
+          const isDumbbell = equipment === "dumbbell";
+          const instructions =
+            (activeAlt
+              ? activeAlt.exercise?.instructions
+              : ex.exercise?.instructions) ?? [];
           const isLogged = savedIds.has(ex.id);
           return (
             <div
@@ -189,6 +245,7 @@ export default function DayCard({
                 <div className="flex items-start justify-between gap-2">
                   <p className="flex flex-wrap items-center gap-1.5 font-medium">
                     {name}
+                    {isSwapped && <Badge tone="neutral">Swapped</Badge>}
                     {ex.unverified && <Badge tone="warning">Unverified</Badge>}
                   </p>
                   {equipmentLabel && (
@@ -206,10 +263,9 @@ export default function DayCard({
                 {/* "How to do it" (left) and occupied-equipment backups (right)
                     on one row with big tap targets, so the two small links don't
                     get mis-tapped. How-to prints; alternatives are no-print. */}
-                {((ex.exercise?.instructions?.length ?? 0) > 0 ||
-                  ex.alternatives.length > 0) && (
+                {(instructions.length > 0 || ex.alternatives.length > 0) && (
                   <div className="mt-1 flex items-center justify-between gap-3">
-                    {(ex.exercise?.instructions?.length ?? 0) > 0 ? (
+                    {instructions.length > 0 ? (
                       <button
                         type="button"
                         onClick={() => toggleHow(ex.id)}
@@ -238,7 +294,7 @@ export default function DayCard({
                         className="no-print inline-flex min-h-[36px] items-center gap-1 pl-4 text-[13px] font-semibold text-accent transition-colors hover:text-accent-hover"
                       >
                         <Repeat2 size={14} strokeWidth={2} />
-                        If equipment is taken ({ex.alternatives.length})
+                        Swap exercise ({ex.alternatives.length})
                         <ChevronDown
                           size={14}
                           strokeWidth={2.5}
@@ -252,39 +308,86 @@ export default function DayCard({
                   </div>
                 )}
 
-                {/* Expanded how-to steps. */}
-                {openHow.has(ex.id) && (ex.exercise?.instructions?.length ?? 0) > 0 && (
+                {/* Expanded how-to steps (of the active variant). */}
+                {openHow.has(ex.id) && instructions.length > 0 && (
                   <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-xs text-ink-secondary">
-                    {ex.exercise!.instructions.map((step, i) => (
+                    {instructions.map((step, i) => (
                       <li key={i}>{step}</li>
                     ))}
                   </ol>
                 )}
 
-                {/* Expanded equipment-taken backups. no-print keeps them out of the PDF. */}
+                {/* Swap panel: pick a different movement for this slot. The choice
+                    is saved and can be reverted; logs stay attached to the entry.
+                    no-print keeps it out of the PDF. */}
                 {openAlts.has(ex.id) && ex.alternatives.length > 0 && (
-                  <ul className="no-print mt-1 flex flex-col gap-1.5 rounded-field border border-divider bg-surface-sunken/40 p-2.5">
-                    {ex.alternatives.map((alt, i) => {
-                      const altName =
-                        alt.nameOverride ?? alt.exercise?.name ?? "Alternative";
-                      const altEquip = formatEquipmentLabel(alt.exercise?.equipment);
-                      return (
-                        <li key={i} className="text-[13px]">
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="font-medium text-ink">{altName}</span>
-                            {altEquip && (
-                              <Badge tone="neutral" className="shrink-0">
-                                {altEquip}
-                              </Badge>
-                            )}
-                          </div>
-                          {alt.note && (
-                            <p className="text-xs text-ink-tertiary">{alt.note}</p>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <div className="no-print mt-1 flex flex-col gap-2 rounded-field border border-divider bg-surface-sunken/40 p-2.5">
+                    <ul className="flex flex-col gap-2">
+                      {ex.alternatives.map((alt, i) => {
+                        const altName =
+                          alt.nameOverride ?? alt.exercise?.name ?? "Alternative";
+                        const altEquip = formatEquipmentLabel(alt.exercise?.equipment);
+                        const active = activeIdx === i;
+                        return (
+                          <li
+                            key={i}
+                            className="flex items-start justify-between gap-2 text-[13px]"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-medium text-ink">{altName}</span>
+                                {altEquip && (
+                                  <Badge tone="neutral" className="shrink-0">
+                                    {altEquip}
+                                  </Badge>
+                                )}
+                              </div>
+                              {alt.note && (
+                                <p className="text-xs text-ink-tertiary">{alt.note}</p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              disabled={swappingId === ex.id}
+                              onClick={() => swapTo(ex.id, active ? null : i)}
+                              className={cn(
+                                "inline-flex min-h-[36px] shrink-0 items-center gap-1 rounded-btn border px-2.5 text-[13px] font-semibold transition-colors disabled:opacity-50",
+                                active
+                                  ? "border-success/40 bg-success-bg text-success"
+                                  : "border-border bg-surface text-accent hover:border-accent-border",
+                              )}
+                            >
+                              {active ? (
+                                <>
+                                  <Check size={14} strokeWidth={2.5} /> In use
+                                </>
+                              ) : (
+                                "Use this"
+                              )}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    {isSwapped && (
+                      <button
+                        type="button"
+                        disabled={swappingId === ex.id}
+                        onClick={() => swapTo(ex.id, null)}
+                        className="inline-flex min-h-[36px] items-center gap-1 self-start text-[13px] font-semibold text-ink-secondary transition-colors hover:text-ink disabled:opacity-50"
+                      >
+                        <RotateCcw size={14} strokeWidth={2} />
+                        Revert to {originalName}
+                      </button>
+                    )}
+
+                    {swapErrorId === ex.id && (
+                      <p className="text-[12px] text-error">
+                        Couldn’t swap — check your connection and try again.
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {/* Read-only: show what was logged, if we have the set data.

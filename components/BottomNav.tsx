@@ -17,7 +17,7 @@ const LINKS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/quick", label: "Train", icon: Zap },
   { href: "/setup", label: "Gym", icon: Camera },
-  { href: "/menu", label: "Menu", icon: Utensils },
+  { href: "/food-log", label: "Food", icon: Utensils },
   { href: "/plan", label: "Weekly", icon: ClipboardList },
   { href: "/checkin", label: "Check-in", icon: CircleCheck },
 ];

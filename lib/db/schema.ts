@@ -146,6 +146,10 @@ export const exerciseEntries = pgTable("exercise_entries", {
     .$type<{ exerciseId: string | null; nameOverride: string | null; note: string }[]>()
     .notNull()
     .default([]),
+  // Which alternative (index into `alternatives`) the user swapped this entry
+  // to; null = the original prescribed exercise. Persists the choice and lets
+  // it be reverted. Set logs stay attached to the entry either way.
+  activeAltIndex: integer("active_alt_index"),
 });
 
 // Actual performed sets for a planned exercise entry — the workout diary.
