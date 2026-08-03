@@ -286,6 +286,34 @@ async function withRetryValidation(
   return { plan, hasUnverified };
 }
 
+type CardioBlock = {
+  type: string;
+  durationMin: number;
+  incline: string | null;
+  targetHr: string | null;
+};
+
+// Every day must end with a cardio finisher (product requirement). The prompt
+// asks Claude for one on every day, but the schema allows null and models drop
+// optional fields, so we guarantee it: when a day comes back without cardio, we
+// append a short finisher whose type matches the user's stated preference (and
+// falls back to a brisk walk, which needs no equipment). Kept short — shorter
+// still when the profile prefers minimal cardio — so it never eclipses the lift.
+function defaultCardioForProfile(p: {
+  cardioIncline: boolean;
+  cardioBike: boolean;
+  cardioElliptical: boolean;
+  cardioRunning: boolean;
+  cardioMinimal: boolean;
+}): CardioBlock {
+  const durationMin = p.cardioMinimal ? 6 : 10;
+  if (p.cardioIncline) return { type: "Incline walk", durationMin, incline: "4-6%", targetHr: null };
+  if (p.cardioBike) return { type: "Easy bike", durationMin, incline: null, targetHr: null };
+  if (p.cardioElliptical) return { type: "Elliptical", durationMin, incline: null, targetHr: null };
+  if (p.cardioRunning) return { type: "Easy jog", durationMin, incline: null, targetHr: null };
+  return { type: "Brisk walk", durationMin, incline: null, targetHr: null };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const limited = await enforceAiRateLimit(req, "plan-generate");
@@ -369,8 +397,12 @@ ${compactList}`;
       })
       .returning();
 
+    const fallbackCardio = defaultCardioForProfile(profile);
+
     for (let dayIndex = 0; dayIndex < plan.days.length; dayIndex++) {
       const planDay = plan.days[dayIndex];
+      // Guarantee a cardio finisher on every day (see defaultCardioForProfile).
+      const cardio = planDay.cardio ?? fallbackCardio;
       const [dayRow] = await db
         .insert(days)
         .values({
@@ -381,10 +413,10 @@ ${compactList}`;
           warmup: planDay.warmup,
           warmupItems: planDay.warmupItems,
           cooldown: planDay.cooldown,
-          cardioType: planDay.cardio?.type ?? null,
-          cardioDurationMin: planDay.cardio?.durationMin ?? null,
-          cardioIncline: planDay.cardio?.incline ?? null,
-          cardioTargetHr: planDay.cardio?.targetHr ?? null,
+          cardioType: cardio.type,
+          cardioDurationMin: cardio.durationMin,
+          cardioIncline: cardio.incline,
+          cardioTargetHr: cardio.targetHr,
         })
         .returning();
 
