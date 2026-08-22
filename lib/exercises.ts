@@ -160,6 +160,16 @@ export async function getEligibleExercises(gymItems: GymEquipmentRef[]) {
   return [...rows, ...allowedCableRows, ...allowedMachineRows, ...customRows];
 }
 
+// Set of exercise ids this gym unlocks — used to validate a manually picked or
+// changed exercise before it is persisted, so the same equipment rules that
+// gate generation also gate manual edits.
+export async function getEligibleExerciseIdSet(
+  gymItems: GymEquipmentRef[]
+): Promise<Set<string>> {
+  const rows = await getEligibleExercises(gymItems);
+  return new Set(rows.map((r) => r.id));
+}
+
 export function formatExerciseCompactList(
   rows: { id: string; name: string; equipment: string | null; primaryMuscles: string[] }[]
 ): string {

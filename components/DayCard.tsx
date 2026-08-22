@@ -10,9 +10,18 @@ import {
   Check,
   RotateCcw,
 } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import { exerciseImageUrl } from "@/components/ImageLightbox";
 import ExerciseLog from "@/components/ExerciseLog";
 import RoutineItemRow from "@/components/RoutineItemRow";
+import ExercisePicker, {
+  type ExerciseOption,
+  type PickedExercise,
+} from "@/components/ExercisePicker";
 import type { FullDay, SetLog } from "@/lib/plan-data";
 import { fetchJson } from "@/lib/safe-fetch";
 import { Button, Card, Badge, Stepper, cn } from "@/components/ui";
@@ -56,6 +65,9 @@ export default function DayCard({
   onOpen,
   onDone,
   onImageClick,
+  exerciseOptions,
+  optionsLoading = false,
+  onMutated,
 }: {
   day: FullDay;
   weightUnit: "kg" | "lbs";
@@ -63,6 +75,10 @@ export default function DayCard({
   onOpen: () => void;
   onDone: () => void;
   onImageClick: (images: string[], title: string) => void;
+  exerciseOptions: ExerciseOption[];
+  optionsLoading?: boolean;
+  /** Reload the week after the user adds / changes / removes an exercise. */
+  onMutated: () => void;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const total = day.exercises.length;
@@ -131,6 +147,55 @@ export default function DayCard({
       setSwapErrorId(entryId);
     } finally {
       setSwappingId(null);
+    }
+  }
+
+  // Manual add / change exercise picker. `add` targets this day; `change`
+  // targets one entry. Null = closed.
+  const [picker, setPicker] = useState<
+    { mode: "add" } | { mode: "change"; entryId: number } | null
+  >(null);
+  const [mutating, setMutating] = useState(false);
+  const [mutateError, setMutateError] = useState<string | null>(null);
+
+  async function handlePick(sel: PickedExercise) {
+    if (!picker) return;
+    setMutating(true);
+    setMutateError(null);
+    try {
+      if (picker.mode === "add") {
+        await fetchJson(`/api/days/${day.id}/entries`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sel),
+        });
+      } else {
+        await fetchJson(`/api/entries/${picker.entryId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sel),
+        });
+      }
+      setPicker(null);
+      onMutated();
+    } catch (err) {
+      setMutateError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setMutating(false);
+    }
+  }
+
+  async function handleRemove(entryId: number, name: string) {
+    if (!window.confirm(`Remove “${name}” from this day?`)) return;
+    setMutating(true);
+    setMutateError(null);
+    try {
+      await fetchJson(`/api/entries/${entryId}`, { method: "DELETE" });
+      onMutated();
+    } catch (err) {
+      setMutateError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setMutating(false);
     }
   }
 
@@ -390,6 +455,29 @@ export default function DayCard({
                   </div>
                 )}
 
+                {/* Manual edit: replace this exercise or remove it. Kept out of
+                    the PDF; the choice persists and logs stay attached. */}
+                <div className="no-print mt-1 flex items-center gap-4">
+                  <button
+                    type="button"
+                    disabled={mutating}
+                    onClick={() => setPicker({ mode: "change", entryId: ex.id })}
+                    className="inline-flex min-h-[36px] items-center gap-1 text-[13px] font-semibold text-ink-secondary transition-colors hover:text-accent disabled:opacity-50"
+                  >
+                    <Pencil size={13} strokeWidth={2} />
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    disabled={mutating}
+                    onClick={() => handleRemove(ex.id, name)}
+                    className="inline-flex min-h-[36px] items-center gap-1 text-[13px] font-semibold text-ink-secondary transition-colors hover:text-error disabled:opacity-50"
+                  >
+                    <Trash2 size={13} strokeWidth={2} />
+                    Remove
+                  </button>
+                </div>
+
                 {/* Read-only: show what was logged, if we have the set data.
                     (Sets saved earlier this session set the check icon above via
                     savedIds; their detail appears after the next reload.) */}
@@ -416,6 +504,22 @@ export default function DayCard({
           );
         })}
       </div>
+
+      {/* Add your own exercise to this day (muscle -> equipment -> exercise, or
+          free-text). Kept out of the PDF. */}
+      <button
+        type="button"
+        disabled={mutating}
+        onClick={() => setPicker({ mode: "add" })}
+        className="no-print mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-field border border-dashed border-border text-[13px] font-semibold text-accent transition-colors hover:border-accent-border hover:bg-accent-fill/40 disabled:opacity-50"
+      >
+        <Plus size={16} strokeWidth={2.5} />
+        Add exercise
+      </button>
+
+      {mutateError && (
+        <p className="no-print mt-1.5 text-[12px] text-error">{mutateError}</p>
+      )}
 
       {day.cardio && (
         <>
@@ -473,6 +577,16 @@ export default function DayCard({
           </Button>
         </div>
       )}
+
+      <ExercisePicker
+        open={picker !== null}
+        title={picker?.mode === "change" ? "Change exercise" : "Add exercise"}
+        options={exerciseOptions}
+        loading={optionsLoading}
+        submitting={mutating}
+        onClose={() => setPicker(null)}
+        onPick={handlePick}
+      />
     </Card>
     </div>
   );

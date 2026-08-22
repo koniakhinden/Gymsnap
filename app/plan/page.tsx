@@ -6,6 +6,7 @@ import { Printer, FileText, Trash2 } from "lucide-react";
 import ImageLightbox from "@/components/ImageLightbox";
 import DayCard from "@/components/DayCard";
 import RoutineItemRow from "@/components/RoutineItemRow";
+import type { ExerciseOption } from "@/components/ExercisePicker";
 import type { FullWeek } from "@/lib/plan-data";
 import { fetchJson } from "@/lib/safe-fetch";
 import { Button, Card, Skeleton } from "@/components/ui";
@@ -33,6 +34,9 @@ export default function PlanPage() {
   const [preparingMode, setPreparingMode] = useState<ExportMode | null>(null);
   // Accordion: at most one day is in "fill workout" (log) mode at a time.
   const [openDayId, setOpenDayId] = useState<number | null>(null);
+  // Exercises the user's gym unlocks — fed to the add/change picker. Loaded once.
+  const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(true);
 
   // One-tap export: pick a style and print immediately. We flip exportMode (which
   // drives the `export-<mode>` class on <main>), wait for React to paint that
@@ -68,7 +72,20 @@ export default function PlanPage() {
     const params = new URLSearchParams(window.location.search);
     const w = params.get("week");
     loadWeek(w ? Number(w) : null);
+    loadOptions();
   }, []);
+
+  async function loadOptions() {
+    setOptionsLoading(true);
+    try {
+      const data = await fetchJson<{ options: ExerciseOption[] }>("/api/exercises/options");
+      setExerciseOptions(data.options);
+    } catch {
+      // Non-fatal: the picker just shows no library options (custom entry still works).
+    } finally {
+      setOptionsLoading(false);
+    }
+  }
 
   async function loadWeek(num: number | null) {
     setLoadingWeek(true);
@@ -240,6 +257,9 @@ export default function PlanPage() {
               onOpen={() => setOpenDayId(day.id)}
               onDone={() => setOpenDayId((cur) => (cur === day.id ? null : cur))}
               onImageClick={(images, title) => setLightbox({ images, title })}
+              exerciseOptions={exerciseOptions}
+              optionsLoading={optionsLoading}
+              onMutated={() => loadWeek(week.weekNumber)}
             />
           ))}
         </div>
