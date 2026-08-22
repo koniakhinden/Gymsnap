@@ -46,6 +46,7 @@ export default function ExerciseLog({
   initialLogs,
   embedded = false,
   onSavedChange,
+  onSaved,
 }: {
   entryId: number;
   plannedSets: number;
@@ -60,6 +61,10 @@ export default function ExerciseLog({
   // and reports its saved state up so the day can show X/Y progress.
   embedded?: boolean;
   onSavedChange?: (saved: boolean) => void;
+  // Fires on a successful save with the just-saved sets, so the parent can keep
+  // them in memory and re-seed this log when the day is closed and reopened
+  // (before the next full week reload).
+  onSaved?: (logs: SetLog[]) => void;
 }) {
   const weightStep = weightUnit === "kg" ? 2.5 : 5;
   const planned = parsePlannedReps(plannedReps);
@@ -104,25 +109,35 @@ export default function ExerciseLog({
     setSaving(true);
     setError(null);
     try {
+      const loggedAt = new Date().toISOString();
+      const savedSets = sets.map((s, i) => ({
+        setNumber: i + 1,
+        weight: s.weight > 0 ? s.weight : null,
+        reps: s.reps,
+        toFailure: s.toFailure,
+      }));
       const res = await fetch("/api/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entryId,
-          weightUnit,
-          loggedAt: new Date().toISOString(),
-          sets: sets.map((s, i) => ({
-            setNumber: i + 1,
-            weight: s.weight > 0 ? s.weight : null,
-            reps: s.reps,
-            toFailure: s.toFailure,
-          })),
-        }),
+        body: JSON.stringify({ entryId, weightUnit, loggedAt, sets: savedSets }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save.");
       setSaved(true);
       onSavedChange?.(true);
+      // Hand the saved sets to the parent so reopening the day re-seeds them
+      // (id is a placeholder; only setNumber/weight/reps/toFailure are read back).
+      onSaved?.(
+        savedSets.map((s) => ({
+          id: 0,
+          setNumber: s.setNumber,
+          weight: s.weight,
+          weightUnit,
+          reps: s.reps,
+          toFailure: s.toFailure,
+          loggedAt,
+        })),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {

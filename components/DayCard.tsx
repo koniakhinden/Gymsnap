@@ -121,6 +121,14 @@ export default function DayCard({
     });
   }
 
+  // Sets saved during this session, keyed by entry. Lets a day that's closed and
+  // reopened ("Continue logging") re-seed each log window with the weights/reps
+  // just entered, before the next full week reload refreshes ex.logs from the DB.
+  const [sessionLogs, setSessionLogs] = useState<Record<number, SetLog[]>>({});
+  function logsFor(entryId: number, dbLogs: SetLog[]): SetLog[] {
+    return sessionLogs[entryId] ?? dbLogs;
+  }
+
   // Per-entry chosen alternative (index into that entry's `alternatives`), or
   // null for the original exercise. Seeded from the DB so a swap persists across
   // reloads. Logs stay attached to the entry, so swapping keeps the diary intact.
@@ -481,9 +489,10 @@ export default function DayCard({
                 {/* Read-only: show what was logged, if we have the set data.
                     (Sets saved earlier this session set the check icon above via
                     savedIds; their detail appears after the next reload.) */}
-                {!isOpen && ex.logs.length > 0 && (
+                {!isOpen && logsFor(ex.id, ex.logs).length > 0 && (
                   <p className="mt-0.5 text-xs text-ink-tertiary">
-                    <span className="font-medium">Logged:</span> {formatLoggedSets(ex.logs)}
+                    <span className="font-medium">Logged:</span>{" "}
+                    {formatLoggedSets(logsFor(ex.id, ex.logs))}
                   </p>
                 )}
                 {isOpen && (
@@ -495,8 +504,9 @@ export default function DayCard({
                     plannedWeight={ex.weight}
                     weightUnit={weightUnit}
                     perDumbbell={isDumbbell}
-                    initialLogs={ex.logs}
+                    initialLogs={logsFor(ex.id, ex.logs)}
                     onSavedChange={(saved) => markSaved(ex.id, saved)}
+                    onSaved={(logs) => setSessionLogs((prev) => ({ ...prev, [ex.id]: logs }))}
                   />
                 )}
               </div>
