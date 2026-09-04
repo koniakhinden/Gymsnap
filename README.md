@@ -10,6 +10,7 @@ Single-user, no auth — but built on a serverless-compatible stack so it can ru
 - Photo storage via [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) (`@vercel/blob`)
 - Anthropic SDK (`@anthropic-ai/sdk`), model `claude-sonnet-5`
 - Exercise library: [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (~870 exercises, public domain)
+- Exercise illustrations: generated offline with OpenAI `gpt-image-2`, stored in Vercel Blob — see [IMAGES.md](IMAGES.md)
 
 ## Required environment variables
 
@@ -20,6 +21,7 @@ Create `.env.local` in the project root (copy `.env.local.example`) and set:
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
 | `DATABASE_URL` | A Neon project connection string (Neon dashboard → Connection Details). Use the pooled/`-pooler` host if offered. |
 | `BLOB_READ_WRITE_TOKEN` | Vercel dashboard → Storage → your Blob store → `.env.local` tab. Locally you need this explicitly; on Vercel it's injected automatically once the Blob store is linked to the project. |
+| `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com/api-keys). Only needed to render exercise illustrations via `npm run images` — the app never calls OpenAI, so don't add it to the Vercel project. See [IMAGES.md](IMAGES.md). |
 
 There's no separate local-dev database — local development talks to the same Neon Postgres instance as production. Neon's free tier is fine for this; just don't point it at data you care about while iterating.
 
@@ -48,6 +50,18 @@ npm run db:migrate    # applies pending migrations to the Neon database in DATAB
 ```
 
 `npm run seed` re-downloads/re-loads `data/exercises.json` if it isn't already cached locally, then upserts every exercise by `id` (`ON CONFLICT DO UPDATE`) — safe to re-run any time, including against a database that already has data.
+
+## Exercise illustrations
+
+Exercises are shown with AI-generated illustrations — one wide 3:2 image per exercise, with the movement phases as panels inside it. These live in their own tables and win at read time; `exercises.images` (the free-exercise-db photos) is never overwritten, so `npm run seed` stays safe to re-run and an exercise falls back to its original photos the moment its generated image is deactivated.
+
+Generation is offline and costs money — the deployed app never calls OpenAI. See [IMAGES.md](IMAGES.md) for the commands, the review/rollback flow, and how to change the drawing style.
+
+```bash
+npm run images status               # what's done so far
+npm run images -- specs --limit 10  # drawing specs via Claude
+npm run images -- generate --limit 3
+```
 
 ## App flow
 
