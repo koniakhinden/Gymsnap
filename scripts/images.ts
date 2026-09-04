@@ -382,12 +382,42 @@ async function status() {
     .from(exercises)
     .leftJoin(exerciseImageSpecs, eq(exerciseImageSpecs.exerciseId, exercises.id));
 
+  // Разбивка по версии шаблона — главный признак того, что библиотека поехала:
+  // спеки, собранные под разные TEMPLATE_VERSION, дадут картинки в разных стилях,
+  // и по самим картинкам это уже не отличить.
+  const byTemplate = await db
+    .select({
+      version: exerciseImageSpecs.templateVersion,
+      orientation: exerciseImageSpecs.orientation,
+      edited: sql<number>`count(*) filter (where ${exerciseImageSpecs.editedByHand})`,
+      n: sql<number>`count(*)`,
+    })
+    .from(exerciseImageSpecs)
+    .groupBy(exerciseImageSpecs.templateVersion, exerciseImageSpecs.orientation)
+    .orderBy(exerciseImageSpecs.templateVersion, exerciseImageSpecs.orientation);
+
   const byStatus = await db
     .select({ status: exerciseImages.status, n: sql<number>`count(*)` })
     .from(exerciseImages)
     .groupBy(exerciseImages.status);
 
   console.log(`упражнений: ${s.total}, со спекой: ${s.withSpec}`);
+
+  console.log("спеки:");
+  for (const t of byTemplate) {
+    const edited = t.edited > 0 ? `, правлено руками ${t.edited}` : "";
+    console.log(`  шаблон v${t.version} / ${t.orientation}: ${t.n}${edited}`);
+  }
+  const stale = byTemplate.filter((t) => t.version !== TEMPLATE_VERSION);
+  if (stale.length > 0) {
+    const n = stale.reduce((a, t) => a + Number(t.n), 0);
+    console.log(
+      `  ⚠ ${n} спек на старом шаблоне (сейчас v${TEMPLATE_VERSION}) — пересчитай их: specs --only <id,...>`,
+    );
+  }
+
+  console.log("картинки:");
+  if (byStatus.length === 0) console.log("  пока ничего не сгенерировано");
   for (const b of byStatus) console.log(`  ${b.status}: ${b.n}`);
 }
 
