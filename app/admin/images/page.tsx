@@ -106,7 +106,7 @@ export default function ImageQueuePage() {
   const selectable = rows.filter((r) => r.state !== "no-spec");
   const allSelected = selectable.length > 0 && selectable.every((r) => selected.has(r.id));
 
-  async function runQueue(targets: QueueRow[]) {
+  async function runQueue(targets: QueueRow[], endpoint: "generate" | "spec" = "generate") {
     if (targets.length === 0) return;
     cancelled.current = false;
     setRunning(true);
@@ -121,10 +121,10 @@ export default function ImageQueuePage() {
       }
       setJobs((js) => js.map((j) => (j.id === t.id ? { ...j, state: "running" } : j)));
       try {
-        await fetchJson(`/api/admin/images/exercise/${encodeURIComponent(t.id)}/generate`, {
+        await fetchJson(`/api/admin/images/exercise/${encodeURIComponent(t.id)}/${endpoint}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quality }),
+          body: JSON.stringify(endpoint === "generate" ? { quality } : {}),
         });
         setJobs((js) => js.map((j) => (j.id === t.id ? { ...j, state: "done" } : j)));
       } catch (e) {
@@ -160,10 +160,21 @@ export default function ImageQueuePage() {
     runQueue(targets);
   }
 
+  // Specs are the cheap prerequisite — Claude tokens, not image dollars — so this
+  // runs over everything currently listed without a spec, with no confirmation.
+  async function runAllSpecs() {
+    const all = await fetchJson<QueueResponse>(
+      `/api/admin/images?filter=no-spec${usedOnly ? "&used=1" : ""}`
+    );
+    runQueue(all.rows.filter((r) => r.state === "no-spec"), "spec");
+  }
+
   const doneCount = jobs.filter((j) => j.state === "done").length;
   const failedCount = jobs.filter((j) => j.state === "failed").length;
   const missingCount =
     (usedOnly ? data?.counts["used-no-image"] : data?.counts["no-image"]) ?? 0;
+  const noSpecCount =
+    (usedOnly ? data?.counts["used-no-spec"] : data?.counts["no-spec"]) ?? 0;
 
   return (
     <main className="flex h-dvh flex-col gap-2 p-3">
@@ -330,6 +341,13 @@ export default function ImageQueuePage() {
                 <option value="high">high</option>
               </select>
             </label>
+            <Button
+              variant="secondary"
+              onClick={runAllSpecs}
+              disabled={running || noSpecCount === 0}
+            >
+              Сделать спеки ({noSpecCount})
+            </Button>
             <Button
               onClick={() => runQueue(rows.filter((r) => selected.has(r.id) && r.state !== "no-spec"))}
               disabled={running || selected.size === 0}

@@ -107,6 +107,13 @@ export default function ExerciseWorkbench({
     }
   }
 
+  const makeSpec = () =>
+    act("spec", () =>
+      fetchJson(`/api/admin/images/exercise/${encodeURIComponent(id)}/spec`, {
+        method: "POST",
+      })
+    );
+
   const saveSpec = () =>
     act("save", async () => {
       const res = await fetchJson<{ prompt: string | null }>(
@@ -167,8 +174,14 @@ export default function ExerciseWorkbench({
       {error && <p className="text-sm text-error">{error}</p>}
 
       {!data.spec && (
-        <Card className="p-3 text-sm text-ink-secondary">
-          Спеки нет. Сначала <code>npm run images -- specs --only {id}</code>.
+        <Card className="flex flex-wrap items-center gap-3 p-3 text-sm text-ink-secondary">
+          <span>
+            Спеки нет — сначала её надо посчитать. Это Claude, стоит центы, а не
+            доллары, как картинка.
+          </span>
+          <Button onClick={makeSpec} disabled={busy !== null}>
+            {busy === "spec" ? "Считаю спеку…" : "Сделать спеку"}
+          </Button>
         </Card>
       )}
 
