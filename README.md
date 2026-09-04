@@ -27,6 +27,8 @@ There's no separate local-dev database — local development talks to the same N
 
 ## First run
 
+Полная шпаргалка по всем командам — [COMMANDS.md](COMMANDS.md).
+
 ```bash
 npm install
 npm run db:migrate   # applies the schema in ./drizzle to your Neon database
