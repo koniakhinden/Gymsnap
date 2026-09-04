@@ -5,17 +5,20 @@
 
 import { createHash } from "node:crypto";
 
-export const TEMPLATE_VERSION = 1;
+export const TEMPLATE_VERSION = 2;
 
-/** Токены из app/globals.css. Дублируются сюда намеренно: промпт — не CSS. */
-const INK = "#1C1917";
+/** Токен из app/globals.css. Дублируется сюда намеренно: промпт — не CSS. */
 const ACCENT = "#0D9488";
 
-export const STYLE_BLOCK = `Instructional fitness illustration, flat vector style, thick clean
-outlines in near-black ${INK}, plain white background #FFFFFF,
-athletic wear in teal ${ACCENT} — both the top and the shorts in teal,
-plain unbranded white sneakers with no markings, warm taupe gray
-equipment, not cool steel, one soft contact shadow, no gym scenery.`;
+export const STYLE_BLOCK = `Victorian engraved plate illustration: fine ink hatching and
+cross-hatching describing all volume and shadow, no flat fills, no
+gradients, no photographic shading. Sepia-brown ink line, restrained
+and precise, in the manner of a nineteenth-century anatomical plate.
+Warm off-white background #FAFAF9, no paper texture, no border rule.
+Equipment reduced to the minimum needed to identify it — the bar and
+plates only, no rack, no machine frame, no weight stack tower. A single
+straight horizontal floor line that both panels share. Face engraved
+with restraint, no beard.`;
 
 export const CAMERA_BLOCKS = {
   /** По умолчанию. Показывает углы в суставах и траекторию снаряда. */
@@ -37,6 +40,30 @@ Never a strict side view, never a flat front view.`,
 
 export type Camera = keyof typeof CAMERA_BLOCKS;
 
+/** Whether the torso is vertical (squat, overhead press) or lying/planked
+ *  (bench press, push-up, plank, crunch, inverted row). */
+export type Orientation = "upright" | "horizontal";
+
+/**
+ * Canvas size per phase count and body orientation.
+ *
+ * A fixed 3:2 canvas wasted about a quarter of the frame on horizontal
+ * movements: split into panels, each panel came out portrait while the figure
+ * inside it is landscape. Wider canvases give a horizontal body a panel shaped
+ * like the body.
+ *
+ * gpt-image-2 constraints, all satisfied below: both sides a multiple of 16,
+ * aspect ratio at most 3:1, total pixels between 655,360 and 8,294,400.
+ */
+export const CANVAS_SIZES: Record<Orientation, Record<number, string>> = {
+  upright: { 2: "1536x1024", 3: "2048x1024", 4: "2560x1024" },
+  horizontal: { 2: "2048x1024", 3: "2560x1024", 4: "2560x896" },
+};
+
+export function canvasSize(phases: number, orientation: Orientation): string {
+  return CANVAS_SIZES[orientation][phases] ?? CANVAS_SIZES[orientation][2];
+}
+
 /**
  * Пул внешности. Только тон кожи и волосы — без возраста и телосложения.
  * Категории ("a Black woman") модель глушит о собственный дефолт,
@@ -44,18 +71,18 @@ export type Camera = keyof typeof CAMERA_BLOCKS;
  * Порядок менять нельзя: индекс детерминирован по хешу и завязан на позицию.
  */
 export const FIGURE_POOL = [
-  "a woman with deep brown skin and short natural coily hair",
-  "a man with deep brown skin and a short afro",
-  "a woman with dark brown skin and box braids",
-  "a man with dark brown skin and short twists",
-  "a woman with light brown skin and straight black hair tied in a bun",
-  "a man with light brown skin and straight black hair",
-  "a woman with medium brown skin and long dark wavy hair",
-  "a man with medium brown skin, black wavy hair and a short beard",
-  "a woman with olive skin and dark hair tied back",
-  "a man with olive skin and short dark curly hair",
-  "a woman with pale skin and a blonde ponytail",
-  "a man with pale skin and short brown hair",
+  "a Black woman with short coily hair",
+  "a Black man with a short afro",
+  "a Black woman with box braids",
+  "a Black man with short twists",
+  "an East Asian man with straight black hair",
+  "an East Asian woman with straight black hair tied in a bun",
+  "a South Asian man with black wavy hair",
+  "a South Asian woman with long dark hair tied back",
+  "a Hispanic woman with dark wavy hair",
+  "a Hispanic man with short dark curly hair",
+  "a white woman with a blonde ponytail",
+  "a white man with short brown hair",
 ] as const;
 
 /** Одно упражнение — всегда один и тот же человек, при любом числе перегенераций. */
@@ -73,15 +100,15 @@ line separating them. The panels bleed to the edges of the image.
 ${CAMERA_BLOCKS[camera]}
 
 Identical figure, identical camera angle and identical camera distance
-in every panel. The figure fills the panel vertically, occupying at
-least 85% of the panel height, vertically centered.
+in every panel. All panels share the same floor line at the same height.
+Eye level.
 
-Eye level. A small numeral ${INK} in the top-left corner of each panel.
-A thin dark gray arrow in each panel after the first, showing the
-direction the body or the load travels.
+A thin dashed arc in bright teal ${ACCENT} in the upper corner of the
+frame, indicating the direction of the movement. It is a directional
+marker only — it must not touch the equipment or the body, and it must
+not attempt to trace the real path of the load.
 
-Numerals only — no words, no letters, no labels, no logos, no
-watermark. Aspect ratio 3:2, 1536x1024.`;
+No numerals, no words, no letters, no logos, no watermark.`;
 }
 
 export interface ImageSpec {

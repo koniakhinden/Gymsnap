@@ -28,7 +28,11 @@ export default function PlanPage() {
   const [progressIndex, setProgressIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const [lightbox, setLightbox] = useState<{ images: string[]; title: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    images: string[];
+    title: string;
+    phases: number | null;
+  } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>("illustrated");
   const [preparingMode, setPreparingMode] = useState<ExportMode | null>(null);
@@ -256,7 +260,7 @@ export default function PlanPage() {
               isOpen={openDayId === day.id}
               onOpen={() => setOpenDayId(day.id)}
               onDone={() => setOpenDayId((cur) => (cur === day.id ? null : cur))}
-              onImageClick={(images, title) => setLightbox({ images, title })}
+              onImageClick={(images, title, phases) => setLightbox({ images, title, phases })}
               exerciseOptions={exerciseOptions}
               optionsLoading={optionsLoading}
               onMutated={() => loadWeek(week.weekNumber)}
@@ -288,7 +292,7 @@ export default function PlanPage() {
                   <RoutineItemRow
                     key={ii}
                     item={it}
-                    onImageClick={(images, title) => setLightbox({ images, title })}
+                    onImageClick={(images, title, phases) => setLightbox({ images, title, phases })}
                   />
                 ))}
               </ul>
@@ -328,6 +332,7 @@ export default function PlanPage() {
       {lightbox && (
         <ImageLightbox
           images={lightbox.images}
+          phases={lightbox.phases}
           title={lightbox.title}
           onClose={() => setLightbox(null)}
         />

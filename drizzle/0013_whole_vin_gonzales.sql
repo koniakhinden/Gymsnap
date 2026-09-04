@@ -1,0 +1,1 @@
+ALTER TABLE "exercise_image_specs" ADD COLUMN "orientation" text DEFAULT 'upright' NOT NULL;

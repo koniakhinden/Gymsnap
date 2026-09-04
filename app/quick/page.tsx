@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, X, BookOpen, ChevronDown } from "lucide-react";
 import ImageLightbox from "@/components/ImageLightbox";
-import { exerciseImageUrl } from "@/lib/exercise-image-url";
+import ExerciseImage from "@/components/ExerciseImage";
 import { compressPhoto } from "@/lib/compress-photo";
 import { fetchJson } from "@/lib/safe-fetch";
 import {
@@ -87,6 +87,9 @@ type Block = {
     id: string;
     name: string;
     images: string[];
+    // Panel count when `images` is a generated illustration; null on the
+    // free-exercise-db fallback, which has no panels to number.
+    imagePhases: number | null;
     equipment: string | null;
     instructions: string[];
   } | null;
@@ -177,7 +180,11 @@ export default function QuickWorkoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [expanded, setExpanded] = useState<Record<number, "easier" | "harder" | "how" | null>>({});
-  const [lightbox, setLightbox] = useState<{ images: string[]; title: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    images: string[];
+    title: string;
+    phases: number | null;
+  } | null>(null);
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
@@ -413,14 +420,21 @@ export default function QuickWorkoutPage() {
                   {images.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setLightbox({ images, title: name })}
+                      onClick={() =>
+                        setLightbox({
+                          images,
+                          title: name,
+                          phases: block.exercise?.imagePhases ?? null,
+                        })
+                      }
                       className="exercise-thumb shrink-0"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={exerciseImageUrl(images[0])}
+                      <ExerciseImage
+                        src={images[0]}
+                        phases={block.exercise?.imagePhases ?? null}
                         alt={name}
                         className="h-16 w-24 rounded-md border border-border object-cover"
+                        numeralClassName="pl-1 pt-0.5 text-[10px]"
                       />
                     </button>
                   )}
@@ -528,6 +542,7 @@ export default function QuickWorkoutPage() {
         {lightbox && (
           <ImageLightbox
             images={lightbox.images}
+            phases={lightbox.phases}
             title={lightbox.title}
             onClose={() => setLightbox(null)}
           />

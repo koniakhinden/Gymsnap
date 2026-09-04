@@ -9,6 +9,9 @@ export type HydratedBlock = QuickBlock & {
     id: string;
     name: string;
     images: string[];
+    // Panel count when `images` is a generated illustration; null on the
+    // free-exercise-db fallback, which has no panels to number.
+    imagePhases: number | null;
     equipment: string | null;
     instructions: string[];
   } | null;
@@ -51,7 +54,8 @@ export async function hydrateQuickWorkout(
           ? {
               id: ex.id,
               name: ex.name,
-              images: generated ? [generated] : ex.images.map(exerciseImageUrl),
+              images: generated ? [generated.url] : ex.images.map(exerciseImageUrl),
+              imagePhases: generated ? generated.phases : null,
               equipment: ex.equipment,
               instructions: ex.instructions,
             }

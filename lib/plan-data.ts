@@ -14,6 +14,7 @@ import {
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { CUSTOM_BY_ID } from "./custom-exercises";
 import { exerciseImageUrl, resolveImagesBatch } from "./exercise-images";
+import type { GeneratedImage } from "./exercise-images";
 
 export async function getLatestProfile(userId: string) {
   const rows = await db
@@ -59,6 +60,9 @@ export type HydratedAlternative = {
     id: string;
     name: string;
     images: string[];
+    // Panel count when `images` is a generated illustration; null on the
+    // free-exercise-db fallback, which has no panels to number.
+    imagePhases: number | null;
     equipment: string | null;
     instructions: string[];
   } | null;
@@ -75,6 +79,9 @@ export type HydratedRoutineItem = {
     id: string;
     name: string;
     images: string[];
+    // Panel count when `images` is a generated illustration; null on the
+    // free-exercise-db fallback, which has no panels to number.
+    imagePhases: number | null;
     equipment: string | null;
     instructions: string[];
   } | null;
@@ -104,6 +111,9 @@ export type FullExerciseEntry = {
     id: string;
     name: string;
     images: string[];
+    // Panel count when `images` is a generated illustration; null on the
+    // free-exercise-db fallback, which has no panels to number.
+    imagePhases: number | null;
     instructions: string[];
     equipment: string | null;
   } | null;
@@ -159,6 +169,9 @@ type LibExercise = {
   id: string;
   name: string;
   images: string[];
+  // Panel count when `images` is a generated illustration; null on the
+  // free-exercise-db fallback, which has no panels to number.
+  imagePhases: number | null;
   equipment: string | null;
   instructions: string[];
 };
@@ -167,7 +180,7 @@ type LibExercise = {
  *  custom fallback). Lets hydration avoid per-id DB round trips. */
 function makeExerciseResolver(
   rows: (typeof exercises.$inferSelect)[],
-  generated: Map<string, string>
+  generated: Map<string, GeneratedImage>
 ): (id: string | null | undefined) => LibExercise | null {
   const byId = new Map(rows.map((r) => [r.id, r]));
   // A generated illustration replaces the free-exercise-db photos for display
@@ -175,9 +188,14 @@ function makeExerciseResolver(
   // row is all it takes to fall back. Absolute Blob URLs and relative
   // free-exercise-db paths are both normalised here, so callers can render
   // images[0] directly.
-  const imagesFor = (id: string, fallback: string[]): string[] => {
-    const url = generated.get(id);
-    return url ? [url] : fallback.map(exerciseImageUrl);
+  const imagesFor = (
+    id: string,
+    fallback: string[]
+  ): { images: string[]; imagePhases: number | null } => {
+    const gen = generated.get(id);
+    return gen
+      ? { images: [gen.url], imagePhases: gen.phases }
+      : { images: fallback.map(exerciseImageUrl), imagePhases: null };
   };
   return (id) => {
     if (!id) return null;
@@ -186,7 +204,7 @@ function makeExerciseResolver(
       return {
         id: row.id,
         name: row.name,
-        images: imagesFor(row.id, row.images),
+        ...imagesFor(row.id, row.images),
         equipment: row.equipment,
         instructions: row.instructions,
       };
@@ -196,7 +214,7 @@ function makeExerciseResolver(
       return {
         id: custom.id,
         name: custom.name,
-        images: imagesFor(custom.id, custom.images),
+        ...imagesFor(custom.id, custom.images),
         equipment: custom.equipment,
         instructions: custom.instructions,
       };
@@ -221,6 +239,7 @@ function resolveRoutineItems(
             id: ex.id,
             name: ex.name,
             images: ex.images,
+            imagePhases: ex.imagePhases,
             equipment: ex.equipment,
             instructions: ex.instructions,
           }
@@ -313,6 +332,7 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
                 id: a.id,
                 name: a.name,
                 images: a.images,
+                imagePhases: a.imagePhases,
                 equipment: a.equipment,
                 instructions: a.instructions,
               }
@@ -336,6 +356,7 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
               id: ex.id,
               name: ex.name,
               images: ex.images,
+              imagePhases: ex.imagePhases,
               instructions: ex.instructions,
               equipment: ex.equipment,
             }

@@ -15,7 +15,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
-import { exerciseImageUrl } from "@/lib/exercise-image-url";
+import ExerciseImage from "@/components/ExerciseImage";
 import ExerciseLog from "@/components/ExerciseLog";
 import RoutineItemRow from "@/components/RoutineItemRow";
 import ExercisePicker, {
@@ -74,7 +74,7 @@ export default function DayCard({
   isOpen: boolean;
   onOpen: () => void;
   onDone: () => void;
-  onImageClick: (images: string[], title: string) => void;
+  onImageClick: (images: string[], title: string, phases: number | null) => void;
   exerciseOptions: ExerciseOption[];
   optionsLoading?: boolean;
   /** Reload the week after the user adds / changes / removes an exercise. */
@@ -278,6 +278,9 @@ export default function DayCard({
             : originalName;
           const images =
             (activeAlt ? activeAlt.exercise?.images : ex.exercise?.images) ?? [];
+          const imagePhases =
+            (activeAlt ? activeAlt.exercise?.imagePhases : ex.exercise?.imagePhases) ??
+            null;
           const equipment = activeAlt
             ? activeAlt.exercise?.equipment
             : ex.exercise?.equipment;
@@ -303,14 +306,15 @@ export default function DayCard({
               {images.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => onImageClick(images, name)}
+                  onClick={() => onImageClick(images, name, imagePhases)}
                   className="exercise-thumb shrink-0"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={exerciseImageUrl(images[0])}
+                  <ExerciseImage
+                    src={images[0]}
+                    phases={imagePhases}
                     alt={name}
                     className="h-14 w-[84px] rounded-md border border-border object-cover"
+                    numeralClassName="pl-1 pt-0.5 text-[9px]"
                   />
                 </button>
               )}

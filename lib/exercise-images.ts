@@ -9,14 +9,23 @@
 
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "./db";
-import { exerciseImages } from "./db/schema";
+import { exerciseImageSpecs, exerciseImages } from "./db/schema";
 
 export { exerciseImageUrl } from "./exercise-image-url";
 import { exerciseImageUrl } from "./exercise-image-url";
 
+/** An active generated illustration. `phases` is the panel count from the spec,
+ *  needed to draw the panel numerals over the image (they are deliberately not
+ *  drawn inside it). It is null for a manually supplied image with no spec. */
+export interface GeneratedImage {
+  url: string;
+  phases: number | null;
+}
+
 export interface ResolvedImages {
   urls: string[];
   source: "generated" | "freedb";
+  phases: number | null;
 }
 
 /** For a single exercise. `fallback` is the contents of exercises.images. */
@@ -25,8 +34,12 @@ export async function resolveImages(
   fallback: string[] | null | undefined,
 ): Promise<ResolvedImages> {
   const [row] = await db
-    .select({ url: exerciseImages.url })
+    .select({ url: exerciseImages.url, phases: exerciseImageSpecs.phases })
     .from(exerciseImages)
+    .leftJoin(
+      exerciseImageSpecs,
+      eq(exerciseImageSpecs.exerciseId, exerciseImages.exerciseId),
+    )
     .where(
       and(
         eq(exerciseImages.exerciseId, exerciseId),
@@ -35,8 +48,12 @@ export async function resolveImages(
     )
     .limit(1);
 
-  if (row) return { urls: [row.url], source: "generated" };
-  return { urls: (fallback ?? []).map(exerciseImageUrl), source: "freedb" };
+  if (row) return { urls: [row.url], source: "generated", phases: row.phases };
+  return {
+    urls: (fallback ?? []).map(exerciseImageUrl),
+    source: "freedb",
+    phases: null,
+  };
 }
 
 /**
@@ -45,12 +62,20 @@ export async function resolveImages(
  */
 export async function resolveImagesBatch(
   exerciseIds: string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, GeneratedImage>> {
   if (exerciseIds.length === 0) return new Map();
 
   const rows = await db
-    .select({ id: exerciseImages.exerciseId, url: exerciseImages.url })
+    .select({
+      id: exerciseImages.exerciseId,
+      url: exerciseImages.url,
+      phases: exerciseImageSpecs.phases,
+    })
     .from(exerciseImages)
+    .leftJoin(
+      exerciseImageSpecs,
+      eq(exerciseImageSpecs.exerciseId, exerciseImages.exerciseId),
+    )
     .where(
       and(
         inArray(exerciseImages.exerciseId, exerciseIds),
@@ -58,7 +83,7 @@ export async function resolveImagesBatch(
       ),
     );
 
-  return new Map(rows.map((r) => [r.id, r.url]));
+  return new Map(rows.map((r) => [r.id, { url: r.url, phases: r.phases }]));
 }
 
 /** One exercise's gallery: active + history, for admin/review. */

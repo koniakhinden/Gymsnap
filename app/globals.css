@@ -168,6 +168,15 @@ body {
     height: 128px !important;
     object-fit: contain !important;
   }
+  /* Panel numbers are DOM text over the image, not part of it. They position in
+     percentages, so they follow the print size on their own — this only forces
+     the ink through, since browsers drop backgrounds and light text by default. */
+  .exercise-thumb .exercise-panel-num {
+    display: block !important;
+    color: var(--color-ink) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 
   /* "Compact (text only)" export hides the illustrations. */
   .export-compact .exercise-thumb {

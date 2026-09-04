@@ -15,18 +15,25 @@ import { db } from "../lib/db";
 import { exercises, exerciseImageSpecs, exerciseImages } from "../lib/db/schema";
 import {
   buildPrompt,
+  canvasSize,
   figureFor,
   promptHash,
   TEMPLATE_VERSION,
   type Camera,
+  type Orientation,
 } from "../lib/image-prompt";
 
 // ─── настройки ──────────────────────────────────────────────────────────────
 
 const OPENAI_MODEL = "gpt-image-2"; // пришпилено: алиас chatgpt-image-latest уедет посреди прогона
 const OPENAI_QUALITY = "high";
-const OPENAI_SIZE = "1536x1024";
+// Размер больше не константа — он зависит от числа фаз и ориентации тела,
+// см. CANVAS_SIZES в lib/image-prompt.ts.
+// На quality "high" один кадр рисуется минутами, а у fetch по умолчанию таймаута
+// нет вообще — зависший запрос держал бы слот в пуле до конца прогона.
+const OPENAI_TIMEOUT_MS = 600_000;
 const SPEC_MODEL = "claude-sonnet-5";
+// Если ловишь 429 — снижай параллелизм, а не увеличивай паузу между ретраями.
 const CONCURRENCY = 4;
 
 // ─── мелкие утилиты ─────────────────────────────────────────────────────────
@@ -48,12 +55,18 @@ async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>) {
   );
 }
 
+/** Ошибка, которую бессмысленно повторять: параметры запроса неверны. */
+class PermanentError extends Error {}
+
 async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   let last: unknown;
   for (let a = 1; a <= tries; a++) {
     try {
       return await fn();
     } catch (e) {
+      // 400 и прочие 4xx (кроме 429) означают кривой запрос — повтор даст тот же
+      // ответ и лишь утроит время падения.
+      if (e instanceof PermanentError) throw e;
       last = e;
       if (a < tries) await new Promise((r) => setTimeout(r, 2000 * a));
     }
@@ -77,6 +90,13 @@ const SpecSchema = z.object({
         "invisible from the side; three_quarter when grip or stance width is the point " +
         "of the exercise and the far hand would be hidden in profile.",
     ),
+  orientation: z
+    .enum(["upright", "horizontal"])
+    .describe(
+      "upright when the torso is vertical (squats, standing presses, seated rows); " +
+        "horizontal when the body lies down or holds a horizontal plank (bench press, " +
+        "inverted row, push-up, plank, crunch). Picks the canvas aspect ratio.",
+    ),
   panelDescriptions: z
     .array(z.string())
     .min(2)
@@ -98,7 +118,11 @@ Rules:
 - Keep every panel comparable: same stance, same grip, only the moving parts differ.
 - Mention the equipment concretely enough to draw it, including plate count where relevant.
 - 2 phases for almost everything. Use 3-4 only for genuinely multi-position movements
-  (burpee, clean, turkish get-up).`;
+  (burpee, clean, turkish get-up).
+- Orientation describes the TORSO, not the limbs: "upright" for squats, standing presses,
+  seated rows and anything performed on the feet or seated upright; "horizontal" for bench
+  press, push-ups, planks, crunches, inverted rows and anything lying or held in a
+  horizontal plank.`;
 
 async function generateSpecs() {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -181,6 +205,7 @@ async function generateSpecs() {
           exerciseId: ex.id,
           phases: spec.phases,
           camera: spec.camera,
+          orientation: spec.orientation,
           panelDescriptions: spec.panelDescriptions,
           figure: figureFor(ex.id),
           templateVersion: TEMPLATE_VERSION,
@@ -192,13 +217,14 @@ async function generateSpecs() {
           set: {
             phases: spec.phases,
             camera: spec.camera,
+            orientation: spec.orientation,
             panelDescriptions: spec.panelDescriptions,
             templateVersion: TEMPLATE_VERSION,
             updatedAt: new Date(),
           },
         });
 
-      console.log(`  ✓ ${ex.id} (${spec.phases} фазы, ${spec.camera})`);
+      console.log(`  ✓ ${ex.id} (${spec.phases} фазы, ${spec.camera}, ${spec.orientation})`);
     } catch (e) {
       console.error(`  ✗ ${ex.id}: ${(e as Error).message}`);
     }
@@ -207,7 +233,7 @@ async function generateSpecs() {
 
 // ─── шаг 2: картинки через OpenAI → Blob → БД ───────────────────────────────
 
-async function openaiImage(prompt: string): Promise<Buffer> {
+async function openaiImage(prompt: string, size: string): Promise<Buffer> {
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: {
@@ -217,13 +243,23 @@ async function openaiImage(prompt: string): Promise<Buffer> {
     body: JSON.stringify({
       model: OPENAI_MODEL,
       prompt,
-      size: OPENAI_SIZE,
+      size,
       quality: OPENAI_QUALITY,
       n: 1,
     }),
+    signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
   });
 
-  if (!res.ok) throw new Error(`openai ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const body = await res.text();
+    const msg = `openai ${res.status}: ${body}`;
+    // 429 и 5xx — временные, их повторяем. Остальные 4xx (в первую очередь 400:
+    // недопустимый размер, отклонённый промпт, нет доступа к модели) — нет.
+    if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+      throw new PermanentError(msg);
+    }
+    throw new Error(msg);
+  }
   const json = await res.json();
   const b64 = json?.data?.[0]?.b64_json;
   if (!b64) throw new Error(`нет b64_json: ${JSON.stringify(json).slice(0, 300)}`);
@@ -241,6 +277,7 @@ async function generateImages() {
       name: exercises.name,
       phases: exerciseImageSpecs.phases,
       camera: exerciseImageSpecs.camera,
+      orientation: exerciseImageSpecs.orientation,
       panelDescriptions: exerciseImageSpecs.panelDescriptions,
       figure: exerciseImageSpecs.figure,
     })
@@ -268,12 +305,14 @@ async function generateImages() {
         figure: ex.figure,
       });
 
+      const size = canvasSize(ex.phases, ex.orientation as Orientation);
+
       if (dry) {
-        console.log(`\n─── ${ex.id} ───\n${prompt}\n`);
+        console.log(`\n─── ${ex.id} (${ex.orientation}, ${size}) ───\n${prompt}\n`);
         return;
       }
 
-      const raw = await withRetry(() => openaiImage(prompt));
+      const raw = await withRetry(() => openaiImage(prompt, size));
       const webp = await sharp(raw).webp({ quality: 90 }).toBuffer();
       const meta = await sharp(webp).metadata();
 
@@ -312,7 +351,7 @@ async function generateImages() {
         }),
       ]);
 
-      console.log(`  ✓ ${ex.id} v${version} (${Math.round(webp.byteLength / 1024)} KB)`);
+      console.log(`  ✓ ${ex.id} v${version} ${size} (${Math.round(webp.byteLength / 1024)} KB)`);
     } catch (e) {
       console.error(`  ✗ ${ex.id}: ${(e as Error).message}`);
     }

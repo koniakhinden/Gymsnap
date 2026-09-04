@@ -1,16 +1,19 @@
 "use client";
 
 import { exerciseImageUrl } from "@/lib/exercise-image-url";
+import ExerciseImage from "@/components/ExerciseImage";
 
 // Re-exported for backwards compatibility with existing imports.
 export { exerciseImageUrl };
 
 export default function ImageLightbox({
   images,
+  phases,
   title,
   onClose,
 }: {
   images: string[];
+  phases?: number | null;
   title: string;
   onClose: () => void;
 }) {
@@ -27,16 +30,18 @@ export default function ImageLightbox({
     >
       <div className="flex flex-col sm:flex-row gap-2 items-center justify-center w-full max-w-5xl">
         {images.map((img) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ExerciseImage
             key={img}
-            src={exerciseImageUrl(img)}
+            src={img}
+            // Only the single generated plate carries panels to number.
+            phases={single ? phases ?? null : null}
             alt={title}
             className={
               single
                 ? "rounded-lg object-contain min-w-0 max-h-[60vh] sm:max-h-[80vh] max-w-full"
                 : "rounded-lg object-contain min-w-0 max-h-[38vh] sm:max-h-[70vh] max-w-[90vw] sm:max-w-[calc(50%-0.25rem)]"
             }
+            numeralClassName="pl-2 pt-1.5 text-base"
           />
         ))}
       </div>

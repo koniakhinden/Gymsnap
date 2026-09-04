@@ -355,6 +355,14 @@ export const exerciseImageSpecs = pgTable("exercise_image_specs", {
     enum: ["profile", "front", "three_quarter"],
   }).notNull(),
 
+  // Whether the torso is vertical or lying/planked — picks the canvas aspect,
+  // so a horizontal body doesn't sit in a portrait panel.
+  orientation: text("orientation", {
+    enum: ["upright", "horizontal"],
+  })
+    .notNull()
+    .default("upright"),
+
   // One entry per panel; length must equal `phases`.
   panelDescriptions: jsonb("panel_descriptions").$type<string[]>().notNull(),
 
