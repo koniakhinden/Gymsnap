@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { exercises, quickWorkouts } from "./db/schema";
 import { desc, eq, inArray } from "drizzle-orm";
+import { exerciseImageUrl, resolveImagesBatch } from "./exercise-images";
 import type { QuickBlock, QuickWorkout } from "./validation/quick-workout";
 
 export type HydratedBlock = QuickBlock & {
@@ -29,23 +30,28 @@ export async function hydrateQuickWorkout(
     .map((b) => b.exerciseId)
     .filter((id): id is string => id !== null);
 
-  const rows =
+  // Library rows and generated illustrations in one round trip each — the
+  // generated image wins for display, exercises.images stays untouched.
+  const [rows, generatedImages] = await Promise.all([
     ids.length > 0
-      ? await db.select().from(exercises).where(inArray(exercises.id, ids))
-      : [];
+      ? db.select().from(exercises).where(inArray(exercises.id, ids))
+      : Promise.resolve([] as (typeof exercises.$inferSelect)[]),
+    resolveImagesBatch(ids),
+  ]);
   const byId = new Map(rows.map((r) => [r.id, r]));
 
   return {
     ...workout,
     blocks: workout.blocks.map((b) => {
       const ex = b.exerciseId ? byId.get(b.exerciseId) : undefined;
+      const generated = ex ? generatedImages.get(ex.id) : undefined;
       return {
         ...b,
         exercise: ex
           ? {
               id: ex.id,
               name: ex.name,
-              images: ex.images,
+              images: generated ? [generated] : ex.images.map(exerciseImageUrl),
               equipment: ex.equipment,
               instructions: ex.instructions,
             }

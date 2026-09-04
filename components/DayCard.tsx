@@ -15,7 +15,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
-import { exerciseImageUrl } from "@/components/ImageLightbox";
+import { exerciseImageUrl } from "@/lib/exercise-image-url";
 import ExerciseLog from "@/components/ExerciseLog";
 import RoutineItemRow from "@/components/RoutineItemRow";
 import ExercisePicker, {
@@ -310,7 +310,7 @@ export default function DayCard({
                   <img
                     src={exerciseImageUrl(images[0])}
                     alt={name}
-                    className="h-14 w-14 rounded-md border border-border object-cover"
+                    className="h-14 w-[84px] rounded-md border border-border object-cover"
                   />
                 </button>
               )}

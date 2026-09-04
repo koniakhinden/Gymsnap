@@ -1,4 +1,5 @@
-import { pgTable, serial, text, integer, boolean, jsonb, timestamp, real, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { pgTable, serial, text, integer, boolean, jsonb, timestamp, real, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const gyms = pgTable(
   "gyms",
@@ -328,3 +329,98 @@ export const nutritionSettings = pgTable("nutrition_settings", {
   calorieTargetOverride: integer("calorie_target_override"),
   updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true }).notNull(),
 });
+
+/**
+ * Generated exercise illustrations — prompt spec + rendered image gallery.
+ *
+ * These sit alongside `exercises.images` (the free-exercise-db photos) and never
+ * overwrite it: reads go through lib/exercise-images.ts, which prefers an active
+ * generated image and falls back to the original photos. That keeps `npm run seed`
+ * safe to re-run and makes a rollback a status change, not a data restore.
+ */
+
+/**
+ * What to draw for one exercise. Computed once via Claude and reused, so
+ * re-rendering an image doesn't mean paying for the tokens again.
+ */
+export const exerciseImageSpecs = pgTable("exercise_image_specs", {
+  exerciseId: text("exercise_id")
+    .primaryKey()
+    .references(() => exercises.id, { onDelete: "cascade" }),
+
+  // How many phases of the movement we show (panels inside the one image).
+  phases: integer("phases").notNull(),
+
+  camera: text("camera", {
+    enum: ["profile", "front", "three_quarter"],
+  }).notNull(),
+
+  // One entry per panel; length must equal `phases`.
+  panelDescriptions: jsonb("panel_descriptions").$type<string[]>().notNull(),
+
+  // Appearance of the figure — derived from a hash of exerciseId, editable by hand.
+  figure: text("figure").notNull(),
+
+  // Which lib/image-prompt.ts TEMPLATE_VERSION this spec was built against.
+  templateVersion: integer("template_version").notNull().default(1),
+
+  // A hand-edited spec is never overwritten by a re-run of `images specs`.
+  editedByHand: boolean("edited_by_hand").notNull().default(false),
+
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * The gallery. Many rows per exercise, exactly one active (enforced by the
+ * partial unique index). Old versions are kept — they are the history and the
+ * rollback target.
+ */
+export const exerciseImages = pgTable(
+  "exercise_images",
+  {
+    id: text("id").primaryKey(), // nanoid()
+
+    exerciseId: text("exercise_id")
+      .notNull()
+      .references(() => exercises.id, { onDelete: "cascade" }),
+
+    url: text("url").notNull(), // public Blob URL
+    blobPathname: text("blob_pathname").notNull(), // for del() during prune
+
+    // active   — shown in the app
+    // archived — previous version, can be rolled back to
+    // rejected — bad render, never offered as a rollback target
+    status: text("status", {
+      enum: ["active", "archived", "rejected"],
+    })
+      .notNull()
+      .default("active"),
+
+    source: text("source", { enum: ["generated", "manual"] })
+      .notNull()
+      .default("generated"),
+
+    // Reproducibility: what drew it, and from which text.
+    model: text("model"),
+    prompt: text("prompt"),
+    promptHash: text("prompt_hash"),
+
+    width: integer("width"),
+    height: integer("height"),
+    bytes: integer("bytes"),
+
+    version: integer("version").notNull().default(1),
+    note: text("note"), // rejection reason / review comment
+
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("exercise_images_exercise_idx").on(t.exerciseId),
+    index("exercise_images_status_idx").on(t.status),
+    // Makes two active images for one exercise impossible.
+    uniqueIndex("exercise_images_one_active_idx")
+      .on(t.exerciseId)
+      .where(sql`status = 'active'`),
+  ]
+);

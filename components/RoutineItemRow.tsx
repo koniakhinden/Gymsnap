@@ -1,6 +1,6 @@
 "use client";
 
-import { exerciseImageUrl } from "@/components/ImageLightbox";
+import { exerciseImageUrl } from "@/lib/exercise-image-url";
 import type { HydratedRoutineItem } from "@/lib/plan-data";
 
 // One warmup or stretch move: optional thumbnail + name + duration + how-to.
@@ -26,7 +26,7 @@ export default function RoutineItemRow({
           <img
             src={exerciseImageUrl(images[0])}
             alt={name}
-            className="h-10 w-10 rounded-md border border-border object-cover"
+            className="h-10 w-[60px] rounded-md border border-border object-cover"
           />
         </button>
       )}

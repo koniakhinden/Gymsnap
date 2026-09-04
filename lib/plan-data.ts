@@ -13,6 +13,7 @@ import {
 } from "./db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { CUSTOM_BY_ID } from "./custom-exercises";
+import { exerciseImageUrl, resolveImagesBatch } from "./exercise-images";
 
 export async function getLatestProfile(userId: string) {
   const rows = await db
@@ -165,9 +166,19 @@ type LibExercise = {
 /** id → library-exercise resolver from pre-fetched rows (+ GymSnap-authored
  *  custom fallback). Lets hydration avoid per-id DB round trips. */
 function makeExerciseResolver(
-  rows: (typeof exercises.$inferSelect)[]
+  rows: (typeof exercises.$inferSelect)[],
+  generated: Map<string, string>
 ): (id: string | null | undefined) => LibExercise | null {
   const byId = new Map(rows.map((r) => [r.id, r]));
+  // A generated illustration replaces the free-exercise-db photos for display
+  // only — exercises.images itself is never rewritten, so dropping the active
+  // row is all it takes to fall back. Absolute Blob URLs and relative
+  // free-exercise-db paths are both normalised here, so callers can render
+  // images[0] directly.
+  const imagesFor = (id: string, fallback: string[]): string[] => {
+    const url = generated.get(id);
+    return url ? [url] : fallback.map(exerciseImageUrl);
+  };
   return (id) => {
     if (!id) return null;
     const row = byId.get(id);
@@ -175,7 +186,7 @@ function makeExerciseResolver(
       return {
         id: row.id,
         name: row.name,
-        images: row.images,
+        images: imagesFor(row.id, row.images),
         equipment: row.equipment,
         instructions: row.instructions,
       };
@@ -185,7 +196,7 @@ function makeExerciseResolver(
       return {
         id: custom.id,
         name: custom.name,
-        images: custom.images,
+        images: imagesFor(custom.id, custom.images),
         equipment: custom.equipment,
         instructions: custom.instructions,
       };
@@ -263,10 +274,16 @@ async function hydrateWeek(weekRow: typeof weeks.$inferSelect): Promise<FullWeek
   for (const b of weekRow.stretchBlocks ?? []) {
     for (const it of b.items ?? []) if (it.exerciseId) referencedIds.add(it.exerciseId);
   }
-  const exerciseRows = referencedIds.size
-    ? await db.select().from(exercises).where(inArray(exercises.id, [...referencedIds]))
-    : [];
-  const resolve = makeExerciseResolver(exerciseRows);
+  // Generated illustrations for the same ids — ONE batched query, not one per
+  // exercise. Custom (GymSnap-authored) ids are included: they have no
+  // free-exercise-db photo at all, so a generated image is all they can show.
+  const [exerciseRows, generatedImages] = await Promise.all([
+    referencedIds.size
+      ? db.select().from(exercises).where(inArray(exercises.id, [...referencedIds]))
+      : Promise.resolve([] as (typeof exercises.$inferSelect)[]),
+    resolveImagesBatch([...referencedIds]),
+  ]);
+  const resolve = makeExerciseResolver(exerciseRows, generatedImages);
 
   // Group logs + entries in memory.
   const logsByEntry = new Map<number, typeof logRows>();

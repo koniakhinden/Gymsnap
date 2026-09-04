@@ -1,11 +1,9 @@
 "use client";
 
-const EXERCISE_IMAGE_BASE =
-  "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/";
+import { exerciseImageUrl } from "@/lib/exercise-image-url";
 
-export function exerciseImageUrl(image: string): string {
-  return `${EXERCISE_IMAGE_BASE}${image}`;
-}
+// Re-exported for backwards compatibility with existing imports.
+export { exerciseImageUrl };
 
 export default function ImageLightbox({
   images,
@@ -17,6 +15,11 @@ export default function ImageLightbox({
   onClose: () => void;
 }) {
   if (images.length === 0) return null;
+  // A generated illustration is ONE wide 3:2 image with the movement phases as
+  // panels inside it, so it gets the full width. Exercises still on the
+  // free-exercise-db fallback hand us two separate start/end frames — those keep
+  // sharing the row, otherwise the end position would be lost.
+  const single = images.length === 1;
   return (
     <div
       className="no-print fixed inset-0 z-50 flex flex-col items-center justify-center bg-ink/80 p-4"
@@ -29,7 +32,11 @@ export default function ImageLightbox({
             key={img}
             src={exerciseImageUrl(img)}
             alt={title}
-            className="rounded-lg object-contain min-w-0 max-h-[38vh] sm:max-h-[70vh] max-w-[90vw] sm:max-w-[calc(50%-0.25rem)]"
+            className={
+              single
+                ? "rounded-lg object-contain min-w-0 max-h-[60vh] sm:max-h-[80vh] max-w-full"
+                : "rounded-lg object-contain min-w-0 max-h-[38vh] sm:max-h-[70vh] max-w-[90vw] sm:max-w-[calc(50%-0.25rem)]"
+            }
           />
         ))}
       </div>

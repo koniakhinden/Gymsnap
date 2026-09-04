@@ -156,13 +156,17 @@ body {
     page-break-inside: avoid;
   }
 
-  /* Small static preview, one frame per exercise (~96px). */
+  /* One wide preview per exercise. Generated illustrations are a single 3:2
+     image with the movement phases as panels inside, so the frame is sized 3:2
+     and roughly twice as wide as the old square — at 96px the panels were
+     unreadable. The row has the space now: one image instead of two. */
   .exercise-thumb {
     display: block !important;
   }
   .exercise-thumb img {
-    width: 96px !important;
-    height: 96px !important;
+    width: 192px !important;
+    height: 128px !important;
+    object-fit: contain !important;
   }
 
   /* "Compact (text only)" export hides the illustrations. */

@@ -85,6 +85,13 @@
       "when": 1783909002588,
       "tag": "0011_swap_active_alt",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788501411217,
+      "tag": "0012_many_bishop",
+      "breakpoints": true
     }
   ]
 }

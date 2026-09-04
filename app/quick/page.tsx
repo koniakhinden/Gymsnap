@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Camera, X, BookOpen, ChevronDown } from "lucide-react";
-import ImageLightbox, { exerciseImageUrl } from "@/components/ImageLightbox";
+import ImageLightbox from "@/components/ImageLightbox";
+import { exerciseImageUrl } from "@/lib/exercise-image-url";
 import { compressPhoto } from "@/lib/compress-photo";
 import { fetchJson } from "@/lib/safe-fetch";
 import {
@@ -413,13 +414,13 @@ export default function QuickWorkoutPage() {
                     <button
                       type="button"
                       onClick={() => setLightbox({ images, title: name })}
-                      className="shrink-0"
+                      className="exercise-thumb shrink-0"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={exerciseImageUrl(images[0])}
                         alt={name}
-                        className="h-16 w-16 rounded-md border border-border object-cover"
+                        className="h-16 w-24 rounded-md border border-border object-cover"
                       />
                     </button>
                   )}
