@@ -102,13 +102,16 @@ npm run seed            # залить ~900 упражнений; безопас
 (`status`, id упражнения) можно писать без него.
 
 ```bash
-npm run images status                        # сколько упражнений, спек, картинок
+npm run images status                        # спеки по версиям шаблона, картинки по статусам
+npm run images -- top --limit 40             # рейтинг реальной выдачи; ничего не тратит
 
+npm run images -- specs --top --limit 40      # спеки для самых выдаваемых — начинать отсюда
 npm run images -- specs --limit 10           # спеки через Claude, только там где их нет
 npm run images -- specs --only <id1>,<id2>   # пересчитать конкретные
 npm run images -- specs --force --limit 50   # пересчитать всё подряд
 
 npm run images -- generate --only <id> --dry # показать промпт, ничего не потратить
+npm run images -- generate --top --limit 20   # рисовать в порядке реальной выдачи
 npm run images -- generate --limit 3         # нарисовать, статус pending
 npm run images -- generate --quality low     # то же дешевле, для сравнения
 
@@ -119,6 +122,10 @@ npm run images -- rollback <id> --version 2  # вернуть конкретну
 npm run images -- disable <id>               # вернуть упражнение на фото free-exercise-db
 npm run images -- prune                      # удалить блобы забракованных версий
 ```
+
+`--top` сортирует по тому, как часто упражнение реально попадало в планы, разминки,
+растяжки и «Train now». Несколько сотен движений несут почти все планы, а длинный
+хвост библиотеки может не понадобиться вообще — с него не стоит начинать.
 
 `generate` берёт только упражнения без картинки в статусе `active` или `pending`,
 поэтому повторный запуск не перерисовывает и не переоплачивает очередь на приёмку.

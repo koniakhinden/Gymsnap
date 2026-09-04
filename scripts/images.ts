@@ -12,6 +12,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { db } from "../lib/db";
 import { exercises, exerciseImageSpecs, exerciseImages } from "../lib/db/schema";
 import { figureFor, TEMPLATE_VERSION } from "../lib/image-prompt";
+import { loadUsageRanking } from "../lib/image-admin";
 import {
   approveImage,
   DEFAULT_QUALITY,
@@ -46,6 +47,52 @@ async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>) {
       while (i < items.length) await fn(items[i++]);
     }),
   );
+}
+
+/**
+ * Ids упражнений, которые чаще всего реально попадают к пользователям, из числа
+ * тех, что ещё ждут этого шага. Нужно, чтобы бюджет уходил на ядро библиотеки,
+ * а не на её длинный хвост: несколько сотен движений несут почти все планы.
+ */
+async function topPending(needs: (id: string) => boolean, limit: number): Promise<string[]> {
+  const ranking = await loadUsageRanking();
+  return ranking
+    .filter((r) => needs(r.id))
+    .slice(0, limit)
+    .map((r) => r.id);
+}
+
+/** Рейтинг выдачи. Ничего не тратит — только показывает, что пойдёт в работу. */
+async function top() {
+  const limit = Number(flag("limit") ?? 40);
+  const ranking = await loadUsageRanking();
+  const specced = new Set(
+    (await db.select({ id: exerciseImageSpecs.exerciseId }).from(exerciseImageSpecs)).map(
+      (r) => r.id,
+    ),
+  );
+  const withImage = new Set(
+    (
+      await db
+        .select({ id: exerciseImages.exerciseId })
+        .from(exerciseImages)
+        .where(inArray(exerciseImages.status, ["active", "pending"]))
+    ).map((r) => r.id),
+  );
+
+  console.log(`упражнений реально выдавалось: ${ranking.length}`);
+  console.log("№   выдач (осн/альт/разм/quick)  спека  картинка  упражнение");
+  ranking.slice(0, limit).forEach((r, i) => {
+    const mark = (b: boolean) => (b ? "  ✓  " : "  —  ");
+    console.log(
+      `${String(i + 1).padStart(3)}  ${String(r.total).padStart(4)} ` +
+        `(${r.prescribed}/${r.alternates}/${r.routine}/${r.quick})` +
+        `${mark(specced.has(r.id))}${mark(withImage.has(r.id))}  ${r.name}  [${r.id}]`,
+    );
+  });
+
+  const needSpec = ranking.filter((r) => !specced.has(r.id)).length;
+  console.log(`\nиз выдававшихся без спеки: ${needSpec}`);
 }
 
 // ─── шаг 1: спецификации через Claude ───────────────────────────────────────
@@ -100,8 +147,20 @@ Rules:
 
 async function generateSpecs() {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const only = flag("only")?.split(",");
+  let only = flag("only")?.split(",");
   const limit = Number(flag("limit") ?? 50);
+
+  // --top: взять самые выдаваемые из тех, у кого спеки ещё нет.
+  if (has("top") && !only) {
+    const specced = new Set(
+      (await db.select({ id: exerciseImageSpecs.exerciseId }).from(exerciseImageSpecs)).map(
+        (r) => r.id,
+      ),
+    );
+    only = await topPending((id) => !specced.has(id), limit);
+    if (only.length === 0) return console.log("spec: у всех выдававшихся спека уже есть");
+    console.log(`spec: топ-${only.length} по выдаче`);
+  }
 
   const rows = await db
     .select({
@@ -208,9 +267,29 @@ async function generateSpecs() {
 // ─── шаг 2: картинки через OpenAI → Blob → БД ───────────────────────────────
 
 async function generateImages() {
-  const only = flag("only")?.split(",");
+  let only = flag("only")?.split(",");
   const limit = Number(flag("limit") ?? 20);
   const dry = has("dry");
+
+  // --top: рисовать в порядке реальной выдачи, пропуская уже нарисованное.
+  if (has("top") && !only) {
+    const drawn = new Set(
+      (
+        await db
+          .select({ id: exerciseImages.exerciseId })
+          .from(exerciseImages)
+          .where(inArray(exerciseImages.status, ["active", "pending"]))
+      ).map((r) => r.id),
+    );
+    const specced = new Set(
+      (await db.select({ id: exerciseImageSpecs.exerciseId }).from(exerciseImageSpecs)).map(
+        (r) => r.id,
+      ),
+    );
+    only = await topPending((id) => specced.has(id) && !drawn.has(id), limit);
+    if (only.length === 0) return console.log("generate: нечего рисовать из выдававшихся");
+    console.log(`generate: топ-${only.length} по выдаче`);
+  }
   const quality = (flag("quality") ?? DEFAULT_QUALITY) as Quality;
   if (!QUALITIES.includes(quality)) {
     console.error(`неизвестный --quality ${quality}; допустимо: ${QUALITIES.join(", ")}`);
@@ -424,6 +503,7 @@ async function status() {
 // ─── роутер ─────────────────────────────────────────────────────────────────
 
 const commands: Record<string, () => Promise<void>> = {
+  top,
   specs: generateSpecs,
   generate: generateImages,
   approve,
