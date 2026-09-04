@@ -5,33 +5,26 @@
 import "./load-env";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
-import { put, del } from "@vercel/blob";
-import { nanoid } from "nanoid";
-import sharp from "sharp";
+import { del } from "@vercel/blob";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { db } from "../lib/db";
 import { exercises, exerciseImageSpecs, exerciseImages } from "../lib/db/schema";
+import { figureFor, TEMPLATE_VERSION } from "../lib/image-prompt";
 import {
-  buildPrompt,
-  canvasSize,
-  figureFor,
-  promptHash,
-  TEMPLATE_VERSION,
-  type Camera,
-  type Orientation,
-} from "../lib/image-prompt";
+  approveImage,
+  DEFAULT_QUALITY,
+  generateImage,
+  promptForSpec,
+  QUALITIES,
+  sizeForSpec,
+  withRetry,
+  type Quality,
+} from "../lib/image-generation";
 
 // ─── настройки ──────────────────────────────────────────────────────────────
 
-const OPENAI_MODEL = "gpt-image-2"; // пришпилено: алиас chatgpt-image-latest уедет посреди прогона
-const OPENAI_QUALITY = "high";
-// Размер больше не константа — он зависит от числа фаз и ориентации тела,
-// см. CANVAS_SIZES в lib/image-prompt.ts.
-// На quality "high" один кадр рисуется минутами, а у fetch по умолчанию таймаута
-// нет вообще — зависший запрос держал бы слот в пуле до конца прогона.
-const OPENAI_TIMEOUT_MS = 600_000;
 const SPEC_MODEL = "claude-sonnet-5";
 // Если ловишь 429 — снижай параллелизм, а не увеличивай паузу между ретраями.
 const CONCURRENCY = 4;
@@ -53,25 +46,6 @@ async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>) {
       while (i < items.length) await fn(items[i++]);
     }),
   );
-}
-
-/** Ошибка, которую бессмысленно повторять: параметры запроса неверны. */
-class PermanentError extends Error {}
-
-async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
-  let last: unknown;
-  for (let a = 1; a <= tries; a++) {
-    try {
-      return await fn();
-    } catch (e) {
-      // 400 и прочие 4xx (кроме 429) означают кривой запрос — повтор даст тот же
-      // ответ и лишь утроит время падения.
-      if (e instanceof PermanentError) throw e;
-      last = e;
-      if (a < tries) await new Promise((r) => setTimeout(r, 2000 * a));
-    }
-  }
-  throw last;
 }
 
 // ─── шаг 1: спецификации через Claude ───────────────────────────────────────
@@ -233,43 +207,15 @@ async function generateSpecs() {
 
 // ─── шаг 2: картинки через OpenAI → Blob → БД ───────────────────────────────
 
-async function openaiImage(prompt: string, size: string): Promise<Buffer> {
-  const res = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      prompt,
-      size,
-      quality: OPENAI_QUALITY,
-      n: 1,
-    }),
-    signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    const msg = `openai ${res.status}: ${body}`;
-    // 429 и 5xx — временные, их повторяем. Остальные 4xx (в первую очередь 400:
-    // недопустимый размер, отклонённый промпт, нет доступа к модели) — нет.
-    if (res.status >= 400 && res.status < 500 && res.status !== 429) {
-      throw new PermanentError(msg);
-    }
-    throw new Error(msg);
-  }
-  const json = await res.json();
-  const b64 = json?.data?.[0]?.b64_json;
-  if (!b64) throw new Error(`нет b64_json: ${JSON.stringify(json).slice(0, 300)}`);
-  return Buffer.from(b64, "base64");
-}
-
 async function generateImages() {
   const only = flag("only")?.split(",");
   const limit = Number(flag("limit") ?? 20);
   const dry = has("dry");
+  const quality = (flag("quality") ?? DEFAULT_QUALITY) as Quality;
+  if (!QUALITIES.includes(quality)) {
+    console.error(`неизвестный --quality ${quality}; допустимо: ${QUALITIES.join(", ")}`);
+    process.exit(1);
+  }
 
   const rows = await db
     .select({
@@ -283,11 +229,14 @@ async function generateImages() {
     })
     .from(exerciseImageSpecs)
     .innerJoin(exercises, eq(exercises.id, exerciseImageSpecs.exerciseId))
+    // Skip anything that already has a render worth looking at — active OR still
+    // awaiting review. Without the pending arm, a re-run would redraw (and
+    // re-bill) every image that is merely sitting in the review queue.
     .leftJoin(
       exerciseImages,
       and(
         eq(exerciseImages.exerciseId, exercises.id),
-        eq(exerciseImages.status, "active"),
+        inArray(exerciseImages.status, ["active", "pending"]),
       ),
     )
     .where(only ? inArray(exercises.id, only) : isNull(exerciseImages.id))
@@ -297,78 +246,56 @@ async function generateImages() {
 
   await pool(rows, CONCURRENCY, async (ex) => {
     try {
-      const prompt = buildPrompt({
-        exerciseName: ex.name,
+      const spec = {
         phases: ex.phases,
-        camera: ex.camera as Camera,
+        camera: ex.camera,
+        orientation: ex.orientation,
         panelDescriptions: ex.panelDescriptions,
         figure: ex.figure,
-      });
+      };
+      const prompt = promptForSpec(ex.name, spec);
 
-      const size = canvasSize(ex.phases, ex.orientation as Orientation);
+      const size = sizeForSpec(spec);
 
       if (dry) {
         console.log(`\n─── ${ex.id} (${ex.orientation}, ${size}) ───\n${prompt}\n`);
         return;
       }
 
-      const raw = await withRetry(() => openaiImage(prompt, size));
-      const webp = await sharp(raw).webp({ quality: 90 }).toBuffer();
-      const meta = await sharp(webp).metadata();
-
-      const version = await nextVersion(ex.id);
-      const pathname = `exercises/${ex.id}/v${version}.webp`;
-      const blob = await put(pathname, webp, {
-        access: "public",
-        contentType: "image/webp",
+      const row = await generateImage({
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        spec,
+        quality,
+        prompt,
       });
 
-      await db.batch([
-        db
-          .update(exerciseImages)
-          .set({ status: "archived" })
-          .where(
-            and(
-              eq(exerciseImages.exerciseId, ex.id),
-              eq(exerciseImages.status, "active"),
-            ),
-          ),
-
-        db.insert(exerciseImages).values({
-          id: nanoid(),
-          exerciseId: ex.id,
-          url: blob.url,
-          blobPathname: pathname,
-          status: "active",
-          source: "generated",
-          model: OPENAI_MODEL,
-          prompt,
-          promptHash: promptHash(prompt),
-          width: meta.width,
-          height: meta.height,
-          bytes: webp.byteLength,
-          version,
-        }),
-      ]);
-
-      console.log(`  ✓ ${ex.id} v${version} ${size} (${Math.round(webp.byteLength / 1024)} KB)`);
+      console.log(
+        `  ✓ ${ex.id} v${row.version} ${size} ${quality} (${Math.round(row.bytes / 1024)} KB) — pending`,
+      );
     } catch (e) {
       console.error(`  ✗ ${ex.id}: ${(e as Error).message}`);
     }
   });
 }
 
-async function nextVersion(exerciseId: string): Promise<number> {
-  const [row] = await db
-    .select({ max: sql<number>`coalesce(max(${exerciseImages.version}), 0)` })
-    .from(exerciseImages)
-    .where(eq(exerciseImages.exerciseId, exerciseId));
-  return (row?.max ?? 0) + 1;
-}
-
 // ─── ревью и откат ──────────────────────────────────────────────────────────
 
-/** Забраковать активную. Упражнение сразу возвращается к фото из free-exercise-db. */
+/** Принять ожидающую картинку: она становится активной, прежняя уходит в архив. */
+async function approve() {
+  const id = args[1];
+  const [row] = await db
+    .select()
+    .from(exerciseImages)
+    .where(and(eq(exerciseImages.exerciseId, id), eq(exerciseImages.status, "pending")))
+    .orderBy(sql`${exerciseImages.version} desc`)
+    .limit(1);
+  if (!row) return console.error(`${id}: нечего принимать (нет pending)`);
+  await approveImage(row.id);
+  console.log(`${id}: активна v${row.version}`);
+}
+
+/** Забраковать. Упражнение сразу возвращается к фото из free-exercise-db. */
 async function reject() {
   const id = args[1];
   const note = flag("note") ?? "rejected in review";
@@ -376,9 +303,12 @@ async function reject() {
     .update(exerciseImages)
     .set({ status: "rejected", note })
     .where(
-      and(eq(exerciseImages.exerciseId, id), eq(exerciseImages.status, "active")),
+      and(
+        eq(exerciseImages.exerciseId, id),
+        inArray(exerciseImages.status, ["pending", "active"]),
+      ),
     );
-  console.log(`${id}: активная помечена rejected`, r);
+  console.log(`${id}: помечена rejected`, r);
 }
 
 /** Вернуть предыдущую версию. --version N — конкретную. */
@@ -466,6 +396,7 @@ async function status() {
 const commands: Record<string, () => Promise<void>> = {
   specs: generateSpecs,
   generate: generateImages,
+  approve,
   reject,
   rollback,
   disable,

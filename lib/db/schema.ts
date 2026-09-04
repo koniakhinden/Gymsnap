@@ -396,14 +396,20 @@ export const exerciseImages = pgTable(
     url: text("url").notNull(), // public Blob URL
     blobPathname: text("blob_pathname").notNull(), // for del() during prune
 
+    // pending  — freshly generated, awaiting review; NOT shown in the app
     // active   — shown in the app
     // archived — previous version, can be rolled back to
     // rejected — bad render, never offered as a rollback target
+    //
+    // New renders land in `pending` so nothing reaches the app before a human
+    // has looked at it. Only `active` is ever read by the app, so the partial
+    // unique index keeps working unchanged — and several pending attempts for
+    // the same exercise are allowed, which is what regenerate needs.
     status: text("status", {
-      enum: ["active", "archived", "rejected"],
+      enum: ["pending", "active", "archived", "rejected"],
     })
       .notNull()
-      .default("active"),
+      .default("pending"),
 
     source: text("source", { enum: ["generated", "manual"] })
       .notNull()
@@ -411,6 +417,9 @@ export const exerciseImages = pgTable(
 
     // Reproducibility: what drew it, and from which text.
     model: text("model"),
+    // Which price tier this render was billed at — needed to estimate spend,
+    // since the tiers differ by roughly an order of magnitude.
+    quality: text("quality", { enum: ["low", "medium", "high"] }),
     prompt: text("prompt"),
     promptHash: text("prompt_hash"),
 
