@@ -130,8 +130,13 @@ async function generateSpecs() {
 
   await pool(rows, CONCURRENCY, async (ex) => {
     try {
-      const res = await withRetry(() =>
-        anthropic.messages.create({
+      // Validation lives INSIDE withRetry: the model occasionally emits
+      // panelDescriptions as a string instead of an array, or a panel count that
+      // disagrees with `phases`. Those are transient bad draws, not permanent
+      // failures — retrying gets a usable spec, whereas parsing outside the
+      // retry dropped the exercise from the run for good.
+      const spec = await withRetry(async () => {
+        const res = await anthropic.messages.create({
           model: SPEC_MODEL,
           max_tokens: 1500,
           system: SPEC_SYSTEM,
@@ -156,18 +161,19 @@ async function generateSpecs() {
               }),
             },
           ],
-        }),
-      );
+        });
 
-      const block = res.content.find((c) => c.type === "tool_use");
-      if (!block || block.type !== "tool_use") throw new Error("no tool_use");
-      const spec = SpecSchema.parse(block.input);
+        const block = res.content.find((c) => c.type === "tool_use");
+        if (!block || block.type !== "tool_use") throw new Error("no tool_use");
+        const parsed = SpecSchema.parse(block.input);
 
-      if (spec.panelDescriptions.length !== spec.phases) {
-        throw new Error(
-          `phases=${spec.phases}, но панелей ${spec.panelDescriptions.length}`,
-        );
-      }
+        if (parsed.panelDescriptions.length !== parsed.phases) {
+          throw new Error(
+            `phases=${parsed.phases}, но панелей ${parsed.panelDescriptions.length}`,
+          );
+        }
+        return parsed;
+      });
 
       await db
         .insert(exerciseImageSpecs)
