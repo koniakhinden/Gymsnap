@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
       equipment: sp.get("equipment") ?? undefined,
       category: sp.get("category") ?? undefined,
       q: sp.get("q") ?? undefined,
+      usedOnly: sp.get("used") === "1",
     });
 
     // Facets come from the unfiltered set so the dropdowns don't collapse to
@@ -26,6 +27,12 @@ export async function GET(req: NextRequest) {
     const categories = [...new Set(rows.map((r) => r.category).filter(Boolean))].sort();
     const counts = rows.reduce<Record<string, number>>((acc, r) => {
       acc[r.state] = (acc[r.state] ?? 0) + 1;
+      if (r.used > 0) {
+        acc.used = (acc.used ?? 0) + 1;
+        // Пересечение — то, что и надо рисовать в первую очередь.
+        if (r.state === "no-image") acc["used-no-image"] = (acc["used-no-image"] ?? 0) + 1;
+        if (r.state === "no-spec") acc["used-no-spec"] = (acc["used-no-spec"] ?? 0) + 1;
+      }
       return acc;
     }, {});
 

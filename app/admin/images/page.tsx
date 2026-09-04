@@ -21,6 +21,8 @@ type QueueRow = {
   pendingUrl: string | null;
   size: string | null;
   versions: number;
+  used: number;
+  prescribed: number;
 };
 type QueueResponse = {
   rows: QueueRow[];
@@ -56,6 +58,10 @@ export default function ImageQueuePage() {
   const [equipment, setEquipment] = useState("");
   const [category, setCategory] = useState("");
   const [q, setQ] = useState("");
+  // «Реально выдавались» — упражнения, хотя бы раз попавшие в план, разминку,
+  // растяжку или «Train now». Их несколько сотен из 900, и рисовать имеет смысл
+  // сначала их: длинный хвост библиотеки пользователь может не увидеть никогда.
+  const [usedOnly, setUsedOnly] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
   const [quality, setQuality] = useState<Quality>("high");
@@ -74,13 +80,14 @@ export default function ImageQueuePage() {
     if (equipment) sp.set("equipment", equipment);
     if (category) sp.set("category", category);
     if (q) sp.set("q", q);
+    if (usedOnly) sp.set("used", "1");
     try {
       setData(await fetchJson<QueueResponse>(`/api/admin/images?${sp}`));
       setError(null);
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [filter, equipment, category, q]);
+  }, [filter, equipment, category, q, usedOnly]);
 
   useEffect(() => {
     load();
@@ -137,13 +144,15 @@ export default function ImageQueuePage() {
   // exercise that has a spec and no render anywhere in the library, not just
   // the ones the sidebar happens to be showing.
   async function runAllMissing() {
-    const all = await fetchJson<QueueResponse>("/api/admin/images?filter=no-image");
+    const all = await fetchJson<QueueResponse>(
+      `/api/admin/images?filter=no-image${usedOnly ? "&used=1" : ""}`
+    );
     const targets = all.rows.filter((r) => r.state === "no-image");
     if (targets.length === 0) return;
     if (
       !window.confirm(
-        `Сгенерировать ${targets.length} картинок на качестве "${quality}"? ` +
-          `Это платно и займёт часы.`
+        `Сгенерировать ${targets.length} картинок на качестве "${quality}"` +
+          `${usedOnly ? " (только реально выдававшиеся)" : ""}? Это платно и займёт часы.`
       )
     ) {
       return;
@@ -153,7 +162,8 @@ export default function ImageQueuePage() {
 
   const doneCount = jobs.filter((j) => j.state === "done").length;
   const failedCount = jobs.filter((j) => j.state === "failed").length;
-  const missingCount = data?.counts["no-image"] ?? 0;
+  const missingCount =
+    (usedOnly ? data?.counts["used-no-image"] : data?.counts["no-image"]) ?? 0;
 
   return (
     <main className="flex h-dvh flex-col gap-2 p-3">
@@ -197,6 +207,25 @@ export default function ImageQueuePage() {
               </button>
             ))}
           </div>
+
+          <label
+            className={cn(
+              "flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs",
+              usedOnly
+                ? "border-accent-border bg-accent-fill text-accent"
+                : "border-border text-ink-secondary"
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={usedOnly}
+              onChange={(e) => setUsedOnly(e.target.checked)}
+            />
+            только реально выдававшиеся
+            {data?.counts.used != null && (
+              <span className="ml-auto text-ink-tertiary">{data.counts.used}</span>
+            )}
+          </label>
 
           <Input
             placeholder="Поиск по названию или id"
@@ -271,6 +300,9 @@ export default function ImageQueuePage() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px]">{r.name}</span>
                     <span className="block truncate text-[11px] text-ink-tertiary">
+                      {r.used > 0 && (
+                        <span className="text-accent">выдач {r.used} · </span>
+                      )}
                       {r.equipment ?? "—"}
                       {r.phases ? ` · ${r.phases}ф · ${r.orientation}` : ""}
                       {r.editedByHand ? " · ✎" : ""}
@@ -305,7 +337,7 @@ export default function ImageQueuePage() {
               Сгенерировать выбранные ({selected.size})
             </Button>
             <Button variant="secondary" onClick={runAllMissing} disabled={running}>
-              Все без фото ({missingCount})
+              {usedOnly ? "Выдававшиеся без фото" : "Все без фото"} ({missingCount})
             </Button>
             {running && (
               <Button

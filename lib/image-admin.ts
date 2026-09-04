@@ -42,14 +42,20 @@ export type QueueRow = {
   pendingImageId: string | null;
   size: string | null;
   versions: number;
+  /** Сколько раз упражнение реально попадало к пользователю (всего). */
+  used: number;
+  /** Из них — как основное назначенное упражнение плана. */
+  prescribed: number;
 };
 
 export async function loadQueue(): Promise<QueueRow[]> {
-  const [exRows, specRows, imgRows] = await Promise.all([
+  const [exRows, specRows, imgRows, usage] = await Promise.all([
     db.select().from(exercises),
     db.select().from(exerciseImageSpecs),
     db.select().from(exerciseImages).orderBy(desc(exerciseImages.version)),
+    loadUsageRanking(),
   ]);
+  const usageById = new Map(usage.map((u) => [u.id, u]));
 
   const specById = new Map(specRows.map((s) => [s.exerciseId, s]));
   const imgsById = new Map<string, typeof imgRows>();
@@ -94,6 +100,8 @@ export async function loadQueue(): Promise<QueueRow[]> {
         pendingImageId: pending?.id ?? null,
         size: spec ? sizeForSpec(spec) : null,
         versions: imgs.length,
+        used: usageById.get(ex.id)?.total ?? 0,
+        prescribed: usageById.get(ex.id)?.prescribed ?? 0,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -101,11 +109,19 @@ export async function loadQueue(): Promise<QueueRow[]> {
 
 export function filterQueue(
   rows: QueueRow[],
-  opts: { filter?: QueueFilter; equipment?: string; category?: string; q?: string }
+  opts: {
+    filter?: QueueFilter;
+    equipment?: string;
+    category?: string;
+    q?: string;
+    /** Только те, что хотя бы раз реально выдавались пользователю. */
+    usedOnly?: boolean;
+  }
 ): QueueRow[] {
   const q = opts.q?.trim().toLowerCase();
-  return rows.filter((r) => {
+  const out = rows.filter((r) => {
     if (opts.filter && opts.filter !== "all" && r.state !== opts.filter) return false;
+    if (opts.usedOnly && r.used === 0) return false;
     if (opts.equipment && (r.equipment ?? "") !== opts.equipment) return false;
     if (opts.category && (r.category ?? "") !== opts.category) return false;
     if (q && !r.name.toLowerCase().includes(q) && !r.id.toLowerCase().includes(q)) {
@@ -113,6 +129,15 @@ export function filterQueue(
     }
     return true;
   });
+
+  // Отфильтровав по факту выдачи, дальше сортируем по ней же: иначе список
+  // алфавитный, и самое нужное лежит вперемешку с редким.
+  if (opts.usedOnly) {
+    out.sort(
+      (a, b) => b.prescribed - a.prescribed || b.used - a.used || a.name.localeCompare(b.name)
+    );
+  }
+  return out;
 }
 
 export type SpendStats = {
