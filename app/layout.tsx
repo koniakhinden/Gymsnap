@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import BottomNav from "@/components/BottomNav";
+import AppShell from "@/components/AppShell";
 import DisclaimerGate from "@/components/DisclaimerGate";
 
 const inter = Inter({
@@ -40,22 +40,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       {/* Mobile-first: the app lives in a centered column capped at 480px.
-          On wider screens it floats on the tinted app background. */}
+          On wider screens it floats on the tinted app background. AppShell drops
+          that column for the local image workbench, which needs the full width. */}
       <body className="min-h-full bg-bg text-ink">
-        <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col bg-bg shadow-pop sm:min-h-dvh">
-          <div className="no-print flex justify-end px-4 pt-2 -mb-1">
-            <span className="inline-flex items-center rounded-pill border border-accent-badge-border bg-accent-fill px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">
-              Beta
-            </span>
-          </div>
-          <div className="flex-1 pb-2">{children}</div>
-          <footer className="no-print px-4 pb-2 text-center">
-            <a href="/legal" className="text-[11px] text-ink-tertiary underline">
-              Terms of Use · Privacy · Disclaimers
-            </a>
-          </footer>
-          <BottomNav />
-        </div>
+        <AppShell>{children}</AppShell>
         <DisclaimerGate />
       </body>
     </html>
